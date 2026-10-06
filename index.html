@@ -422,9 +422,12 @@
 <section class="tab-section space-y-6" id="achievementsSection">
 <div class="bg-slate-800/60 rounded-2xl p-4 md:p-6 border border-slate-700/60 shadow-xl">
 <button type="button" class="mb-5 inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors" data-back-player>← Back to Player</button>
-<h2 class="text-xl md:text-2xl font-bold text-white mb-5">Achievements</h2>
-<div class="hidden rounded-xl border border-slate-700 bg-slate-900/70 p-5 text-sm text-slate-300 mb-5" id="achievementEmptyState">Select a player from Player Bubble to view achievements.</div>
-<div class="grid grid-cols-5 gap-2 mb-5" id="achievementStats"></div>
+<div class="hidden rounded-xl border border-slate-700 bg-slate-900/70 p-5 text-sm text-slate-300" id="achievementEmptyState">Select a player from Player Bubble to view achievements.</div>
+<div class="pb-4 mb-5 border-b border-slate-700/70">
+<div class="text-xl md:text-2xl font-bold text-white mb-1" id="achievementProfileHeading" style="text-transform:none!important">Achievement Profile</div>
+<div class="text-sm text-slate-400" id="achievementPlayerName"></div>
+</div>
+<div class="hidden" id="achievementOverviewStats"></div><div class="grid grid-cols-5 gap-2 mb-5" id="achievementStats"></div>
 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4" id="achievementGrid"></div>
 </div>
 </section>
@@ -463,6 +466,290 @@
         let liveDataReady = false;
         let liveRefreshInFlight = false;
         let liveRefreshTimer = null;
+
+        // Offline-safe fallback snapshot. Live Google Sheets data will replace this after refresh.
+        const FALLBACK_DATES = [
+            "14/12/2024","21/12/2024","28/12/2024","4/1/2025","11/1/2025","18/1/2025","25/1/2025","1/2/2025","8/2/2025","15/2/2025","22/2/2025","1/3/2025","4/3/2025",
+            "11/3/2025","18/3/2025","25/3/2025","1/4/2025","8/4/2025","15/4/2025","22/4/2025","30/4/2025","6/5/2025","20/5/2025",
+            "27/5/2025","3/6/2025","10/6/2025","17/6/2025","24/6/2025","1/7/2025","8/7/2025","15/7/2025","22/7/2025","29/7/2025",
+            "5/8/2025","12/8/2025","19/8/2025","26/8/2025","3/9/2025","10/9/2025","17/9/2025","23/9/2025","30/9/2025","7/10/2025",
+            "14/10/2025","21/10/2025","28/10/2025","4/11/2025","18/11/2025","25/11/2025","2/12/2025","9/12/2025","16/12/2025","23/12/2025",
+            "6/1/2026","13/1/2026","20/1/2026","3/2/2026","10/2/2026","17/2/2026","24/2/2026","3/3/2026","10/3/2026","17/3/2026",
+            "24/3/2026","31/3/2026","7/4/2026","14/4/2026","21/4/2026","28/4/2026","5/5/2026","12/5/2026","19/5/2026","26/5/2026",
+            "2/6/2026","9/6/2026","16/6/2026","23/6/2026","30/6/2026","7/7/2026","14/7/2026","21/7/2026","28/7/2026","4/8/2026",
+            "11/8/2026","18/8/2026","25/8/2026","1/9/2026","8/9/2026","15/9/2026","22/9/2026","29/9/2026"
+        ];
+        const FALLBACK_RAW_PLAYER_DATA = {
+  "" : [
+    50.00, 48.41, 51.59, 45.23, 54.77, 42.05, 57.95, 38.88, 61.12, 35.74,
+    64.26, 32.65, 67.35, 29.63, 70.37, 26.70, 73.30, 23.88, 76.12, 21.17,
+    78.83, 18.60, 81.40, 16.17, 83.83, 13.91, 86.09, 11.83, 88.17, 9.94,
+    90.06, 8.26, 91.74, 6.79, 93.21, 5.55, 94.45, 4.54, 95.46, 3.77,
+    96.23, 3.24, 96.76, 2.95, 97.05, 2.90, 97.10, 3.09, 96.91, 3.52,
+    96.48, 4.19, 95.81, 5.09, 94.91, 6.22, 93.78, 7.58, 92.42, 9.16,
+    90.84, 10.95, 89.05, 12.95, 87.05, 15.14, 84.86, 17.52, 82.48, 20.07,
+    79.93, 22.77, 77.23, 25.61, 74.39, 28.57, 71.43, 31.63, 68.37, 34.77,
+    65.23, 37.97, 62.03, 41.20, 58.80, 44.43, 55.57, 47.64, 52.36, 50.00
+],
+  "Tancred": [
+  78,50,50, 50, 50, 50, 50, 50, 50, 50, 100, 98, 450, 283, 285, 295, 311,
+  317, 317, 320, 322, 352, 362, 362, 362, 372, 378, 381, 377, 385,
+  403, 408, 416, 468, 477, 516, 528, 553, 588, 613, 642, 696, 734,
+  753, 758, 836, 943, 949, 1083, 1331, 1356, 1402, 1586, 1673, 1680,
+  1740, 1915, 1973, 2081, 2073, 2100, 2100, 2100, 2100, 2100, 2100,
+  2348, 2425, 2450, 2463, 2491, 2508, 2544, 2548, 2558, 2611, 2658,
+  2776, 2826, 2873, 2882, 2902, 2937, 2980, 3081, 3171, 3192, 3205,
+  3238, 3278, 3409
+],
+
+"xenonex": [
+  38, 41, 143, 157, 178, 180, 202, 204, 218, 235, 237, 255, 271, 276,
+  279, 290, 289, 300, 302, 309, 331, 342, 343, 368, 407, 414, 421, 429,
+  467, 467, 501, 524, 535, 534, 542, 585, 595, 685, 717, 748, 848, 874,
+  998, 1104, 1511, 1507, 1575, 1591, 1610, 1690, 1763, 1836, 1926, 1960,
+  1997, 2014, 2058, 2188, 2210, 2224, 2229, 2270, 2293, 2332, 2447, 2443,
+  2442, 2451, 2502, 2504, 2570, 2573, 2592, 2651, 2735, 2785, 2860, 2888,
+  2896, 2903, 3005
+],
+
+"RabidWombat42": [
+  279, 289, 295, 299, 304, 309, 342, 344, 364, 367, 375, 415, 419, 422,
+  431, 437, 448, 448, 469, 467, 494, 499, 521, 524, 582, 594, 603, 630,
+  617, 665, 777, 777, 803, 803, 839, 887, 1261, 1313, 1382, 1347, 1516,
+  1526, 1526, 1549, 1603, 1770, 1794, 1810, 1857, 1886, 1980, 2002, 2011,
+  2002, 2135, 2150, 2272, 2300, 2327, 2312, 2362, 2392, 2450, 2472, 2545,
+  2557, 2594, 2626, 2668
+],
+
+"Brandorn": [
+  45, 46, 46, 46, 46, 47, 50, 50, 57, 58, 182, 164, 181, 182, 197, 197, 199,
+  211, 213, 241, 236, 262, 262, 276, 281, 281, 281, 282, 292, 309, 311,
+  350, 343, 364, 375, 377, 399, 399, 416, 415, 419, 425, 425, 425, 540, 551,
+  553, 559, 559, 572, 587, 594, 600, 600, 621, 642, 662, 718, 772, 827,
+  875, 880, 1277, 1392, 1462, 1543, 1588, 1640, 1693, 1782, 1822, 1885,
+  1888, 1926, 1941, 1940, 1980, 1996, 2089, 2097, 2138, 2190, 2202, 2214,
+  2335, 2326, 2492, 2498, 2562
+],
+
+"Fabs2195": [
+  205, 229, 248, 255, 263, 265, 267, 270, 275, 293, 311, 317, 350, 360,
+  366, 375, 376, 401, 401, 416, 415, 424, 426, 434, 445, 545, 554, 554,
+  564, 567, 567, 587, 610, 551, 673, 725, 771, 779, 792, 940, 960, 886,
+  1093, 1069, 1112, 1268, 1498, 1557, 1717, 1738, 1786, 1823, 1869, 1867,
+  1921, 1949, 2025, 2056, 2086, 2109, 2090, 2131, 2188, 2271, 2337, 2383,
+  2389, 2413, 2447, 2513
+],
+
+"Oddery": [
+  39, 41, 40, 42, 45, 45, 45, 48, 48, 47, 137, 158, 177, 181, 182, 185, 187,
+  192, 201, 221, 228, 242, 246, 255, 263, 274, 259, 277, 286, 304, 306,
+  344, 348, 353, 366, 371, 397, 397, 415, 416, 415, 421, 426, 429, 535,
+  545, 547, 554, 564, 564, 563, 604, 607, 632, 689, 726, 746, 929, 895,
+  963, 978, 1000, 1073, 1199, 1338, 1444, 1359, 1537, 1551, 1592, 1824,
+  1919, 1885, 1931, 1940, 1951, 1976, 2024, 2035, 2040, 2037, 2167, 2239,
+  2237, 2237, 2286, 2341, 2409, 2445
+],
+
+"NBUNKNOWN": [
+  31, 44, 43, 44, 46, 47, 48, 49, 49, 49, 50, 49, 182, 183, 187, 194, 204, 212, 205,
+  218, 219, 246, 251, 262, 264, 271, 283, 285, 286, 288, 289, 316, 316,
+  342, 344, 354, 364, 354, 392, 392, 411, 411, 411, 417, 417, 418, 511,
+  510, 510, 549, 549, 549, 565, 571, 577, 586, 602, 749, 788, 784, 804,
+  872, 851, 848, 1239, 1256, 1447, 1597, 1607, 1654, 1732, 1800, 1842,
+  1883, 1885, 2005, 2029, 2054, 2035, 2106, 2122, 2111, 2167, 2168, 2207,
+  2273, 2277, 2305, 2386, 2399, 2410
+],
+
+"DannyLongpalms": [1963, 2098, 2159, 2166, 2179, 2168, 2204, 2251, 2407],
+
+"Curzon08": [
+  570, 579, 594, 590, 601, 666, 676, 760, 744, 903, 972, 1103, 1491,
+  1660, 1672, 1704, 1751, 1761, 1854, 1855, 1891, 1980, 1959, 2000,
+  2131, 2168, 2277, 2312, 2329, 2351, 2370
+],
+
+"Grabar69": [
+  176, 191, 193, 220, 258, 263, 266, 267, 269, 271, 285, 285, 300, 314,
+  317, 344, 352, 365, 373, 378, 395, 395, 413, 417, 418, 423, 425, 423,
+  533, 533, 540, 540, 552, 552, 552, 552, 552, 604, 598, 598, 650, 682,
+  682, 770, 828, 835, 871, 871, 907, 990, 990, 1527, 1597, 1597, 1695,
+  1724, 1754, 1783, 1786, 1796, 1875, 1907, 1940, 1958, 1962, 2048, 2170,
+  2204, 2239, 2254, 2294, 2339, 2346
+],
+
+"DollarHero": [
+  40, 42, 132, 149, 152, 163, 183, 189, 194, 209, 216, 222, 257, 262,
+  261, 267, 280, 280, 282, 285, 302, 319, 322, 340, 364, 362, 380, 375,
+  391, 391, 415, 417, 424, 422, 425, 438, 542, 535, 540, 552, 561, 561,
+  580, 603, 606, 606, 653, 610, 696, 735, 792, 807, 851, 892, 885, 919,
+  932, 969, 969, 1169, 1281, 1304, 1265, 1354, 1525, 1681, 1782, 1722,
+  1811, 1828, 1831, 1896, 1932, 2004, 2030, 2038, 2046, 2051, 2199, 2224,
+  2343
+],
+
+"shruggie": [
+  31, 47, 138, 149, 165, 179, 181, 190, 197, 214, 212, 224, 245, 259,
+  260, 264, 281, 278, 274, 285, 304, 317, 322, 345, 345, 369, 374, 376,
+  386, 386, 407, 398, 416, 418, 418, 443, 544, 544, 547, 560, 562, 562,
+  565, 565, 669, 669, 676, 706, 713, 742, 796, 818, 869, 873, 876, 883,
+  933, 930, 1174, 1244, 1287, 1387, 1519, 1522, 1640, 1703, 1706, 1732,
+  1750, 1746, 1751, 1626, 1544, 1805, 1926, 2030, 2052, 2238, 2261, 2312,
+  2339
+],
+
+"RavenSun": [1854, 1985, 2023, 2090, 2210],
+
+"Efas": [
+  39,47,46 ,49, 49, 50, 50, 50, 50, 50, 66, 66, 265, 215, 221, 222, 225, 234, 237,
+  232, 241, 251, 265, 272, 277, 284, 286, 287, 287, 291, 306, 319, 319,
+  357, 357, 371, 376, 387, 404, 404, 421, 424, 425, 422, 424, 425, 518,
+  537, 538, 542, 559, 559, 590, 590, 629, 629, 681, 681, 734, 736, 736,
+  868, 949, 885, 968, 1006, 1112, 1097, 1097, 1237, 1473, 1485, 1402,
+  1402, 1652, 1697, 1697, 1675, 1753, 1684, 1789, 1824, 1906, 1906, 1984,
+  2000, 2108, 2152, 2199, 2207, 2198
+],
+
+"medsockerpa": [
+  37, 46, 48, 49, 50, 50, 50, 50, 50, 50, 63, 62, 327, 212, 212, 216, 211, 221, 233,
+  239, 242, 256, 263, 272, 282, 279, 284, 288, 289, 293, 307, 315, 318,
+  342, 360, 364, 375, 371, 388, 388, 406, 416, 420, 425, 425, 430, 536,
+  536, 552, 557, 552, 554, 564, 589, 579, 577, 582, 608, 621, 618, 647,
+  766, 782, 811, 816, 817, 1082, 1170, 1254, 1391, 1498, 1380, 1573,
+  1627, 1691, 1749, 1824, 1879, 1916, 1941, 1944, 2038, 2025, 2045, 2065,
+  2114, 2122, 2138, 2156, 2199, 2175
+],
+
+"Riah5": [
+  254, 275, 284, 292, 292, 338, 344, 342, 354, 361, 371, 452, 453, 460,
+  459, 459, 475, 478, 488, 486, 496, 501, 528, 546, 585, 595, 597, 598,
+  602, 604, 609, 619, 641, 713, 738, 823, 850, 874, 896, 907, 967, 1012,
+  1100, 1163, 1222, 1108, 1129, 1214, 1346, 1567, 1827, 1894, 1943, 1975,
+  2011, 2066
+],
+
+"Navacado": [
+  255, 266, 270, 273, 274, 277, 278, 277, 295, 307, 312, 341, 348, 361,
+  373, 376, 391, 391, 403, 405, 414, 420, 424, 439, 539, 536, 546, 547,
+  552, 552, 578, 595, 598, 598, 662, 675, 672, 718, 748, 699, 777, 819,
+  817, 877, 1002, 1209, 1269, 1245, 1407, 1437, 1637, 1689, 1717, 1745,
+  1757, 1677, 1677, 1677, 1742, 1742, 1742, 1742, 1741, 1865, 1882, 1894,
+  1922, 1909, 2045
+],
+
+"scubaman": [
+  224, 241, 256, 229, 256, 255, 251, 254, 266, 294, 295, 308, 308, 326,
+  344, 355, 377, 377, 391, 400, 402, 402, 416, 432, 499, 499, 499, 528,
+  543, 528, 516, 516, 585, 585, 568, 589, 591, 531, 531, 604, 590, 611,
+  716, 710, 801, 820, 820, 773, 867, 881, 908, 1114, 1188, 1167, 1021,
+  1316, 1268, 1392, 1267, 1516, 1434, 1529, 1567, 1712, 1680, 1802, 1745,
+  1728, 1768
+],
+
+"Moosanator": [
+  576, 577, 584, 584, 592, 599, 615, 621, 736, 727, 776, 764, 790, 812,
+  856, 895, 922, 932, 1094, 1185, 1080, 1158, 1011, 1402, 1370, 1430, 1430,
+  1546, 1760, 1735, 1764
+],
+
+"Du9799": [
+  30, 34, 18, 22, 88, 113, 117, 129, 143, 171, 176, 193, 197, 211, 207,
+  216, 209, 225, 247, 262, 264, 271, 281, 296, 307, 329, 337, 333, 357, 365,
+  394, 394, 413, 409, 403, 412, 428, 439, 539, 539, 539, 539, 354, 538, 532,
+  569, 582, 582, 594, 601, 466, 669, 461, 730, 902, 895, 938, 919, 1076,
+  886, 886, 1381, 1363, 1427, 1555, 1545, 1823, 1857, 1847, 1891, 1873, 2052,
+  2090, 2127, 2121, 2121, 2209, 2239, 2110, 2327, 2401, 2468, 1590
+],
+
+"KosmicSurvivor": [
+  428, 444, 463, 475, 511, 518, 534, 551, 573, 576, 612, 612, 629, 726,
+  823, 1155, 1214, 1178, 1335, 1437, 1560, 1555
+],
+
+"UnstableFlux": [818, 881, 1031, 1234, 1263, 1366, 1508, 1517],
+
+"Tesstichol": [
+  542, 565, 578, 578, 581, 586, 586, 591, 603, 604, 615, 597, 615, 933,
+  995, 1028, 1073, 1216, 1101, 1184
+],
+
+"Player 74010561": [
+  33, 42, 42, 45, 44, 43, 46, 46, 49, 49, 54, 54, 139, 164, 166, 158, 166, 170, 176,
+  200, 194, 225, 220, 230, 251, 243, 253, 253, 253, 257, 270, 270, 250, 281,
+  281, 281, 301, 301, 301, 301, 323, 348, 348, 346, 346, 353, 353, 449, 461,
+  440, 480, 460, 476, 484, 484, 484, 507, 512, 476, 521, 540, 551, 551, 551,
+  557, 556, 557, 569, 569, 572, 577, 589, 590, 610, 585, 598, 613, 600, 618,
+  666, 687, 799, 717, 717, 717, 628, 733, 680, 1006, 1116, 1039
+],
+
+"TelurBasi": [591, 629, 686, 737, 752, 810, 907, 1008],
+
+"Fusillier": [589, 612, 623, 688, 702, 781, 903, 849],
+
+"engji": [563, 582, 612, 621, 621, 633, 693, 718, 808],
+
+"WencesX": [
+  23, 46, 45, 42, 45, 45, 47, 43, 46, 45, 53, 51, 142, 154, 164, 163, 167, 176, 177,
+  187, 187, 203, 207, 213, 207, 240, 245, 246, 244, 243, 260, 258, 259, 276,
+  276, 276, 276, 319, 319, 319, 333, 333, 333, 341, 341, 339, 339, 339, 339,
+  431, 426, 426, 436, 436, 436, 436, 470, 475, 470, 487, 487, 496, 496, 499,
+  500, 501, 501, 564, 567, 563, 571, 578, 580, 580, 589, 592, 592, 592, 591,
+  592, 600, 611, 608, 621, 621, 623, 689, 689, 689, 690, 760
+],
+
+"Player 48888738": [
+  198, 226, 229, 237, 233, 241, 234, 241, 268, 277, 272, 281, 281, 284,
+  284, 283, 311, 311, 328, 347, 356, 347, 336, 357, 440, 447, 449, 459,
+  455, 455, 475, 475, 493, 493, 498, 504, 498, 509, 509, 510, 517, 528, 526,
+  536, 536, 552, 583, 575, 575, 596, 592, 589, 598, 604, 596, 606, 600, 608,
+  604, 614, 609, 623, 643, 668, 668, 713, 670, 750, 717
+],
+
+"AnaLog1": [599, 603, 603, 626, 634, 683, 678],
+
+"CrumpetLord": [500, 499, 509, 501, 547],
+
+"medi8or": [
+  322, 404, 413, 403, 422, 418, 448, 470, 470, 460, 460, 489, 472, 486,
+  487, 514, 493, 493, 493, 493, 512, 512, 526, 533, 534
+],
+
+"Palladino": [
+  606, 602, 581, 608, 642, 651, 637, 689, 754, 748, 786, 775, 775, 845,
+  845, 1022, 997, 1161, 1006, 1219, 1135, 1143, 1076, 1219, 1308, 1397,
+  1306, 1481, 1404, 1576, 1689, 1725, 1736, 1732, 1740, 1694, 1694
+],
+
+"Hasbullhmagovedo": [
+  110, 123, 126, 132, 123, 140, 169, 148, 149, 148, 179, 200, 200, 221,
+  230, 152, 144, 144, 237, 237, 175, 194, 175, 179, 295, 297, 391, 304, 289,
+  289, 417, 417, 411, 411, 411, 411, 411, 411, 460, 460, 446, 407, 407, 462,
+  462, 463, 484, 484, 484, 484, 484, 484, 484, 484, 484, 516, 510, 510, 510,
+  510, 510, 510, 510, 510, 529, 551, 532, 554, 571, 572, 572
+],
+
+"Neph5757": [
+  697, 649, 638, 791, 804, 740, 807, 745, 759, 747, 679, 793, 702, 856,
+  878, 878, 1187, 1187, 1187, 1187, 1187
+],
+
+"GamerLad": [
+  192, 208, 212, 233, 231, 243, 242, 245, 248, 246, 251, 250, 262, 279,
+  279, 290, 290, 290, 307, 310, 305, 305, 334, 337, 340, 342, 341, 341, 447,
+  450, 451, 450, 450, 450, 453, 453, 473, 473, 493, 498, 492, 505, 500, 498,
+  502, 487, 494, 541, 529, 521, 521, 521, 521, 539, 539, 539, 536, 533, 533,
+  533, 542, 544, 578, 600, 581, 613, 621, 621, 669, 712, 724, 724, 724
+],
+
+"MikkMokk08": [
+  494, 494, 490, 513, 541, 541, 541, 541, 541, 491, 491, 491, 491, 491,
+  491, 491, 491, 491
+]
+};
+        dates = FALLBACK_DATES.slice();
+        rawPlayerData = FALLBACK_RAW_PLAYER_DATA;
+        playerNames = Object.keys(rawPlayerData);
+        selectedPlayer = '';
+        liveDataReady = true;
 
         let playerChartMode = 'damage';
         let playerChartRange = 'all';
@@ -644,7 +931,7 @@
                 dates = parsed.dates; rawPlayerData = parsed.players; rawTierData = parsed.tiers; playerStartDates = parsed.starts; normalizedDataset = parsed;
                 playerNames = Object.keys(rawPlayerData);
                 const preserved = previousPlayer && rawPlayerData[previousPlayer]?.some(Number.isFinite) ? previousPlayer : null;
-                selectedPlayer = preserved || playerNames.find(name => name && rawPlayerData[name]?.some(Number.isFinite)) || playerNames.find(name => rawPlayerData[name]?.some(Number.isFinite)) || '';
+                selectedPlayer = preserved || '';
                 liveDataReady = true;
                 populateDatalist();
                 if (playerSearch) playerSearch.value = selectedPlayer;
@@ -664,10 +951,30 @@
 
         function getPlayerSeries(playerName) {
             const source = Array.isArray(rawPlayerData[playerName]) ? rawPlayerData[playerName] : [];
-            const firstValid = source.findIndex(value => Number.isFinite(Number(value)));
-            if (firstValid < 0) return { data: [], startIndex: dates.length, dates: [] };
-            const data = source.slice(firstValid);
-            return { data, startIndex: firstValid, dates: dates.slice(firstValid) };
+            if (!source.length || !dates.length) return { data: [], startIndex: dates.length, dates: [] };
+
+            const numericIndexes = source
+                .map((value, index) => Number.isFinite(Number(value)) ? index : -1)
+                .filter(index => index >= 0);
+            if (!numericIndexes.length) return { data: [], startIndex: dates.length, dates: [] };
+
+            // The LAST stored value is always the player's latest snapshot.
+            // When a player series is shorter than the global date history, align it
+            // against the END of the timeline, not against dates[0].
+            // Example with global dates ending 29/9/2026:
+            // [1,2,3,4,5] => 1 is the oldest of these 5 snapshots,
+            // 4 is 22/9/2026 and 5 is 29/9/2026.
+            if (source.length < dates.length) {
+                const firstValid = numericIndexes[0];
+                const lastValid = numericIndexes[numericIndexes.length - 1];
+                const data = source.slice(firstValid, lastValid + 1);
+                const startIndex = Math.max(0, dates.length - data.length);
+                return { data, startIndex, dates: dates.slice(startIndex, startIndex + data.length) };
+            }
+
+            // Full-length normalized series already has one slot per global date.
+            const firstValid = numericIndexes[0];
+            return { data: source.slice(firstValid), startIndex: firstValid, dates: dates.slice(firstValid) };
         }
 
         function parseDateDMY(dateString) {
@@ -991,7 +1298,27 @@
         }
 
         function updatePlayerAttributes() {
-            if (!selectedPlayer || !rawPlayerData[selectedPlayer]) selectedPlayer = playerNames.find(name => rawPlayerData[name] && rawPlayerData[name].length) || playerNames[0];
+            if (!selectedPlayer || !rawPlayerData[selectedPlayer]) {
+                const placeholders = [
+                    ['playerAttrRank', '#', '-'],
+                    ['playerAttrPeak', '⌒', '-'],
+                    ['playerAttrAvgGrowth', '⤴', '-'],
+                    ['playerAttrBigIncrease', '↑', '-'],
+                    ['playerAttrBigDrop', '↓', '-'],
+                    ['playerAttrLastIncrease', '↻', '-'],
+                    ['playerAttrUnwavering', '◉', '-'],
+                    ['playerAttrJoinDuration', '◷', '-'],
+                    ['playerAttrTotalLme', '●', '-']
+                ];
+                const labels = ['Rank', 'Peak', 'Average Growth', 'Big Increase', 'Big Drop', 'Last Increase', 'concistensy', 'Join Duration', 'Total LME'];
+                const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
+                placeholders.forEach(([id, icon, value], i) => {
+                    const iconColor = iconColors[i % iconColors.length];
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = `<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
+                });
+                return;
+            }
             const m = getComparisonMetrics(selectedPlayer);
             const ranks = getClanRanks();
             const series = getPlayerSeries(selectedPlayer);
@@ -1054,11 +1381,16 @@
                     const rows = playerNames.map(n => { const ps=getPlayerSeries(n); const j=dateIdx-ps.startIndex; return {name:n, score:j>=0&&j<ps.data.length?Number(ps.data[j]):NaN}; }).filter(x=>Number.isFinite(x.score)).sort((a,b)=>b.score-a.score);
                     let rank=0, prev=null; const rankMap={}; rows.forEach((row,i)=>{ if(i===0 || row.score!==prev) rank=i+1; rankMap[row.name]=rank; prev=row.score; }); return rankMap;
                 };
-                const latestRank=getRankAt(latestIdx)[selectedPlayer], previousRank=getRankAt(latestIdx-1)[selectedPlayer];
-                if (Number.isFinite(latestRank) && Number.isFinite(previousRank)) {
-                    const status=latestRank<previousRank?'positive':latestRank>previousRank?'negative':'neutral';
-                    const description=status==='positive'?`Rank improved from #${previousRank} to #${latestRank} compared with the previous snapshot.`:status==='negative'?`Rank fell from #${previousRank} to #${latestRank} compared with the previous snapshot.`:`Rank stayed at #${latestRank} compared with the previous snapshot.`;
-                    add('Clan Rank','◉',description,status);
+                const latestRank=getRankAt(latestIdx)[selectedPlayer];
+                const previousRank=latestIdx > 0 ? getRankAt(latestIdx-1)[selectedPlayer] : NaN;
+                if (Number.isFinite(latestRank)) {
+                    if (Number.isFinite(previousRank)) {
+                        const status=latestRank<previousRank?'positive':latestRank>previousRank?'negative':'neutral';
+                        const description=status==='positive'?`Rank improved from #${previousRank} to #${latestRank} compared with the previous snapshot.`:status==='negative'?`Rank fell from #${previousRank} to #${latestRank} compared with the previous snapshot.`:`Rank stayed at #${latestRank} compared with the previous snapshot.`;
+                        add('Clan Rank','◉',description,status);
+                    } else {
+                        add('Clan Rank','◉',`Current clan rank is #${latestRank}.`,'neutral');
+                    }
                 }
             }
             if (valid.length) {
@@ -1073,6 +1405,8 @@
         }
 
         function updatePlayer() {
+            // Keep the initial/cleared state as an explicit empty-name series.
+            // This intentionally renders the player chart with dataset label "".
             renderChart('playerChart', [selectedPlayer], playerChartMode, playerChartRange, chartTitle, 'player');
             updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
             updatePlayerAttributes();
@@ -1422,34 +1756,72 @@
         });
 
         function switchTab(tabName) {
-            const sections = { player: document.getElementById('playerSection'), clan: document.getElementById('clanSection'), compare: document.getElementById('compareSection'), leaderboard: document.getElementById('leaderboardSection'), flux: document.getElementById('fluxSection'), achievements: document.getElementById('achievementsSection') };
-            const buttons = { player: document.getElementById('tabPlayer'), clan: document.getElementById('tabClan'), compare: document.getElementById('tabCompare'), leaderboard: document.getElementById('tabLeaderboard') };
-            // Achievement and Flux are standalone pages: they are NOT navbar menus and never remain visible with Player.
+            const sections = {
+                player: document.getElementById('playerSection'),
+                compare: document.getElementById('compareSection'),
+                clan: document.getElementById('clanSection'),
+                leaderboard: document.getElementById('leaderboardSection'),
+                forecast: document.getElementById('forecastSection'),
+                flux: document.getElementById('fluxSection'),
+                achievements: document.getElementById('achievementsSection')
+            };
+            const buttons = {
+                player: document.getElementById('tabPlayer'),
+                compare: document.getElementById('tabCompare'),
+                clan: document.getElementById('tabClan'),
+                leaderboard: document.getElementById('tabLeaderboard'),
+                forecast: document.getElementById('tabForecast'),
+                flux: document.getElementById('tabFlux'),
+                achievements: document.getElementById('tabAchievements')
+            };
+
             Object.entries(sections).forEach(([key, section]) => {
                 if (!section) return;
                 const active = key === tabName;
                 section.classList.toggle('active', active);
                 section.hidden = !active;
-                section.style.display = active ? 'block' : 'none';
+                section.style.display = active ? '' : 'none';
                 section.setAttribute('aria-hidden', active ? 'false' : 'true');
             });
             Object.entries(buttons).forEach(([key, button]) => {
                 if (button) button.classList.toggle('active', key === tabName);
             });
+
             window.scrollTo({ top: 0, behavior: 'smooth' });
             setTimeout(() => {
                 if (tabName === 'player' && playerChartInstance) playerChartInstance.resize();
-                if (tabName === 'clan') { if (clanChartInstance) clanChartInstance.resize(); if (clanScoreDistributionInstance) clanScoreDistributionInstance.resize(); }
+                if (tabName === 'clan') {
+                    if (clanChartInstance) clanChartInstance.resize();
+                    if (clanScoreDistributionInstance) clanScoreDistributionInstance.resize();
+                }
                 if (tabName === 'compare' && compareChartInstance) compareChartInstance.resize();
+                if (tabName === 'forecast') {
+                    if (typeof forecastChartInstance !== 'undefined' && forecastChartInstance) forecastChartInstance.resize();
+                    if (typeof clanForecastChartInstance !== 'undefined' && clanForecastChartInstance) clanForecastChartInstance.resize();
+                }
             }, 0);
-            if (tabName === 'leaderboard') updateLeaderboard();
+            if (tabName === 'clan' && typeof updateClan === 'function') updateClan();
+            if (tabName === 'leaderboard' && typeof updateLeaderboard === 'function') updateLeaderboard();
             if (tabName === 'achievements' && typeof renderAchievements === 'function') renderAchievements();
         }
 
-        document.getElementById('tabPlayer').addEventListener('click', () => switchTab('player'));
-        document.getElementById('tabClan').addEventListener('click', () => { updateClan(); switchTab('clan'); });
-        document.getElementById('tabCompare').addEventListener('click', () => switchTab('compare'));
-        document.getElementById('tabLeaderboard').addEventListener('click', () => switchTab('leaderboard'));
+        // Keep navigation isolated from optional/standalone pages so one missing section can never kill all nav.
+        const navBindings = {
+            tabPlayer: 'player',
+            tabCompare: 'compare',
+            tabClan: 'clan',
+            tabLeaderboard: 'leaderboard',
+            tabForecast: 'forecast',
+            tabFlux: 'flux',
+            tabAchievements: 'achievements'
+        };
+        Object.entries(navBindings).forEach(([buttonId, tabName]) => {
+            const button = document.getElementById(buttonId);
+            if (button) button.addEventListener('click', event => {
+                event.preventDefault();
+                switchTab(tabName);
+            });
+        });
         switchTab('player');
         document.getElementById('goToAchievementBtn')?.addEventListener('click', () => switchTab('achievements'));
         document.getElementById('goToFluxBtn')?.addEventListener('click', () => switchTab('flux'));
@@ -1475,9 +1847,35 @@
         compareRange1yBtn.addEventListener('click', () => { compareChartRange = '1y'; updateCompare(); });
         compareRangeAllBtn.addEventListener('click', () => { compareChartRange = 'all'; updateCompare(); });
 
+        function resolvePlayerNickname(value) {
+            const query = String(value ?? '').trim().toLowerCase();
+            if (!query) return '';
+            const exact = playerNames.find(name => String(name).trim().toLowerCase() === query);
+            if (exact) return exact;
+            const partial = playerNames.filter(name => String(name).trim().toLowerCase().includes(query));
+            return partial.length === 1 ? partial[0] : '';
+        }
+
+        // Search text is only a draft. The chart follows selectedPlayer, not what is being typed.
+        // Selecting a player from the native datalist commits the selection via change.
+        let lastPlayerSearchValue = '';
+
         playerSearch.addEventListener('input', e => {
-            const matched = playerNames.find(name => name.toLowerCase() === e.target.value.trim().toLowerCase());
-            if (matched) { selectedPlayer = matched; updatePlayer(); }
+            // IMPORTANT: typing, deleting, or editing the search text must NOT change the chart.
+            lastPlayerSearchValue = e.target.value;
+        });
+
+        playerSearch.addEventListener('change', e => {
+            const raw = e.target.value;
+            const matched = resolvePlayerNickname(raw);
+            if (matched) {
+                selectedPlayer = matched;
+                e.target.value = matched;
+                lastPlayerSearchValue = matched;
+                updatePlayer();
+            }
+            // Invalid/empty search text is intentionally left as-is and does not
+            // alter selectedPlayer or the currently displayed chart.
         });
 
         [comparePlayer1, comparePlayer2, comparePlayer3].forEach(input => input.addEventListener('input', () => updateCompare()));
@@ -1569,11 +1967,19 @@
         let clanForecastChartInstance = null;
         let clanForecastHorizon = 12;
         let forecastHorizon = 8;
+        // Always take the newest N chronological observations.
+        // The sheet dates are normalized ascending, so this deliberately uses the tail, never the first N rows.
+        function latestData(values, count) {
+            const clean = Array.isArray(values) ? values : [];
+            if (!Number.isFinite(count) || count === Infinity) return clean.slice();
+            return clean.slice(Math.max(0, clean.length - count));
+        }
+
         function forecastLinear(values, horizon) {
             const clean = values.map(Number).filter(Number.isFinite);
             if (clean.length < 2) return { future: Array(horizon).fill(clean[0] || 0) };
-            // Fit the linear trend using up to the latest 20 observations.
-            const sample = clean.slice(-20);
+            // Fit the linear trend using the latest 20 observations, i.e. the 20 most recent weeks.
+            const sample = latestData(clean, 20);
             const n = sample.length;
             const meanX = (n - 1) / 2;
             const meanY = sample.reduce((a,b)=>a+b,0) / n;
@@ -1607,7 +2013,7 @@
                 return;
             }
             // Fit against the latest 20 available observations; show only the latest 12 in the chart.
-            const training = pairedAll.slice(-20);
+            const training = latestData(pairedAll, 20);
             const visible = pairedAll.slice(-12);
             const model = forecastLinear(training.map(point => point.value), horizon);
             const lastDate = pairedAll[pairedAll.length-1].date || '';
@@ -1652,7 +2058,7 @@
             const totals=getClanAggregateSeries();
             const valid=totals.map((value,i)=>({value:Number(value),date:dates[i]})).filter(x=>Number.isFinite(x.value));
             if(!valid.length) return;
-            const training=valid.slice(-20), model=forecastLinear(training.map(x=>x.value),clanForecastHorizon);
+            const training=latestData(valid, 20), model=forecastLinear(training.map(x=>x.value),clanForecastHorizon);
             const last=valid[valid.length-1], futureLabels=Array.from({length:clanForecastHorizon},(_,i)=>formatForecastDate(last.date,i+1));
             const labels=valid.slice(-12).map(x=>x.date).concat(futureLabels);
             const historical=valid.slice(-12).map(x=>x.value).concat(Array(clanForecastHorizon).fill(null));
@@ -1694,113 +2100,204 @@
         }
 
         window.addEventListener('load', async function () {
+            // Render the fallback immediately so the dashboard never appears blank while
+            // Google Sheets is loading or unavailable (including local/offline preview).
+            populateDatalist();
+            if (playerSearch) playerSearch.value = selectedPlayer;
+            updatePlayer();
+            updateCompare();
+            updateLeaderboard();
+            updateClan();
+            renderClanScoreDistribution();
+            renderClanForecast();
+            renderForecast();
+            if (typeof renderAchievements === 'function') renderAchievements();
+            if (typeof runFluxSimulation === 'function') runFluxSimulation();
+            setLiveDataStatus(`Cached data loaded · ${dates.length} dates · ${playerNames.length} players · checking live Google Sheets…`, 'loading');
+
+            // Live sheet remains the source of truth when it is reachable.
             await refreshLiveData(true);
             if (!liveRefreshTimer) liveRefreshTimer = setInterval(() => refreshLiveData(false), 5 * 60 * 1000);
         });
 
-        // ACHIEVEMENT SYSTEM — live, Player Bubble-linked, five-tier milestone system.
+        // ACHIEVEMENT SYSTEM — current metric thresholds, linked to Player Bubble selection.
         (() => {
           const $ = id => document.getElementById(id);
           const tiers = [
-            {name:'Bronze', color:'#cd7f32', icon:'●'},
-            {name:'Silver', color:'#cbd5e1', icon:'◆'},
-            {name:'Gold', color:'#fde047', icon:'★'},
-            {name:'Platinum', color:'#67e8f9', icon:'✦'},
-            {name:'Diamond', color:'#60a5fa', icon:'◇'}
+            {name:'Good', color:'#65d83b', icon:'●'},
+            {name:'Excellent', color:'#b56cff', icon:'▲'},
+            {name:'Epic', color:'#fde047', icon:'◆'},
+            {name:'Legend', color:'#ff6b8f', icon:'⬢'},
+            {name:'Eternal', color:'#67e8f9', icon:'✦'}
           ];
           const tierColor = tier => `color:${tier?.color || '#94a3b8'} !important;`;
-          const tierBorder = tier => `border-color:${tier?.color || '#334155'}66;`;
+          const tierBorder = tier => `border-color:${tier?.color || '#334155'}99;`;
+          const tierFill = tier => `background:${tier?.color || '#6366f1'} !important;`;
+          const tierSoft = tier => `background:${tier?.color || '#6366f1'}18;`;
           const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-          const fmt = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US',{maximumFractionDigits:1}) : '—';
-          const getNames = () => playerNames.filter(name => name && Array.isArray(rawPlayerData[name]) && rawPlayerData[name].some(value => Number.isFinite(Number(value))));
+          const fmt = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US',{maximumFractionDigits:2}) : '—';
+          const expandedCards = new Set();
+          const names = playerNames.filter(name => name && Array.isArray(rawPlayerData[name]) && rawPlayerData[name].some(value => Number.isFinite(Number(value))));
           const valuesFor = name => Array.isArray(rawPlayerData[name]) ? rawPlayerData[name].map(Number).filter(Number.isFinite) : [];
-          const cfg = [
-            {id:'ranking', name:'Testament Ranking', targets:[50,30,10,5,1], unit:'rank', rank:true},
-            {id:'peak', name:'Peak Performance', targets:[500,1000,1500,2000,2500], unit:'Testaments'},
-            {id:'bigLeap', name:'Big Leap', targets:[50,100,150,200,300], unit:'Testaments'},
-            {id:'positiveGrowth', name:'Positive Growth', targets:[20,40,60,80,100], unit:'Testaments'},
-            {id:'growthStreak', name:'Growth Streak', targets:[1,3,5,7,9], unit:'consecutive positive intervals'},
-            {id:'persistence', name:'Persistence Growth', targets:[1,3,5,7,9], unit:'positive intervals'}
-          ];
-          function metricFor(name, achievement) {
+          const parseDate = value => { const m = String(value || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? new Date(+m[3], +m[2]-1, +m[1]) : null; };
+          const dataFor = name => {
             const values = valuesFor(name);
-            if (!values.length) return null;
-            const changes = values.slice(1).map((v,i) => v - values[i]);
-            if (achievement.id === 'ranking') {
-              const rank = Number(getClanRanks()[name]);
-              return Number.isFinite(rank) && rank > 0 ? rank : null;
+            const changes = values.slice(1).map((value, i) => value - values[i]);
+            let run = 0, maxRun = 0;
+            changes.forEach(change => { run = change > 0 ? run + 1 : 0; maxRun = Math.max(maxRun, run); });
+            let inDecline = false, preDeclineValue = null, comebacks = 0;
+            for (let i = 1; i < values.length; i++) {
+              if (values[i] < values[i-1]) { inDecline = true; preDeclineValue = values[i-1]; }
+              else if (inDecline && preDeclineValue !== null && values[i] > preDeclineValue) { comebacks++; inDecline = false; preDeclineValue = null; }
             }
-            if (achievement.id === 'peak') return Math.max(...values);
-            if (achievement.id === 'bigLeap') { const positive = changes.filter(v => v > 0); return positive.length ? Math.max(...positive) : 0; }
-            if (achievement.id === 'positiveGrowth') { const positive = changes.filter(v => v > 0); return positive.length ? positive.reduce((a,b)=>a+b,0)/positive.length : 0; }
-            if (achievement.id === 'growthStreak') { let run=0,max=0; changes.forEach(v=>{run=v>0?run+1:0;max=Math.max(max,run);}); return max; }
-            if (achievement.id === 'persistence') return changes.filter(v => v > 0).length;
-            return null;
+            let comparison = {};
+            try { comparison = getComparisonMetrics(name) || {}; } catch (_) {}
+            let ranks = {};
+            try { ranks = getClanRanks() || {}; } catch (_) {}
+            let seriesDates = [];
+            try { const series = getPlayerSeries(name); seriesDates = Array.isArray(series?.dates) ? series.dates : []; } catch (_) {}
+            const parsedDates = seriesDates.map(parseDate).filter(Boolean);
+            const duration = parsedDates.length > 1 ? (Math.max(...parsedDates.map(d => d.getTime())) - Math.min(...parsedDates.map(d => d.getTime()))) / 86400000 : 0;
+            const positive = changes.filter(change => change > 0);
+            const rank = Number(ranks[name]);
+            let bestRank = Number.isFinite(rank) && rank > 0 ? rank : null;
+            // Ascension is based on the player's best-ever historical rank, not only the latest rank.
+            for (let globalIndex = 0; globalIndex < dates.length; globalIndex++) {
+              const historicalRanks = getClanRanksAtIndex(globalIndex);
+              const historicalRank = Number(historicalRanks[name]);
+              if (Number.isFinite(historicalRank) && historicalRank > 0) {
+                bestRank = bestRank === null ? historicalRank : Math.min(bestRank, historicalRank);
+              }
+            }
+            let overtakes = 0;
+            for (let i = 1; i < values.length; i++) {
+              const globalIndex = (dates.length - values.length) + i;
+              if (globalIndex <= 0) continue;
+              const currentRanks = getClanRanksAtIndex(globalIndex);
+              const previousRanks = getClanRanksAtIndex(globalIndex - 1);
+              const currentRank = Number(currentRanks[name]);
+              const previousRank = Number(previousRanks[name]);
+              if (Number.isFinite(currentRank) && Number.isFinite(previousRank) && currentRank < previousRank) {
+                overtakes += previousRank - currentRank;
+              }
+            }
+            return {
+              latest: values.length ? values[values.length - 1] : null,
+              peak: values.length ? Math.max(...values) : null,
+              observations: values.length,
+              bigIncrease: changes.length ? Math.max(0, ...changes) : (values.length > 0 ? 0 : null),
+              avgPositive: positive.length ? positive.reduce((sum, value) => sum + value, 0) / positive.length : (values.length > 1 ? 0 : null),
+              maxRun: values.length > 1 ? maxRun : (values.length ? 0 : null),
+              comebacks: values.length > 1 ? comebacks : (values.length ? 0 : null),
+              overtakes: values.length > 1 ? overtakes : (values.length ? 0 : null),
+              consistency: values.length ? Number(comparison.consistency) : null,
+              duration: parsedDates.length > 1 ? duration : (parsedDates.length ? 0 : null),
+              positiveCount: values.length > 1 ? positive.length : (values.length ? 0 : null),
+              rank: Number.isFinite(rank) && rank > 0 ? rank : null,
+              bestRank
+            };
+          };
+          const cfg = [
+            {id:'ranking', name:'Ascension', category:'Ranking', desc:'Push your rank higher and see how far you have climbed in the Testaments rankings.', metric:'bestRank', targets:[50,30,10,5,1], unit:'rank', rank:true},
+            {id:'collector', name:'Hoarder', category:'History', desc:'Keep building your Testaments history and collect more recorded snapshots.', metric:'observations', targets:[1,10,25,50,100], unit:'observations'},
+            {id:'peak', name:'Apex', category:'Apex', desc:'Set a new personal peak and see how high your Testaments score can go.', metric:'peak', targets:[500,1000,1500,2000,2500], unit:'Testaments'},
+            {id:'bigLeap', name:'Breakthrough', category:'Growth', desc:'Put together a big jump between two recorded Testaments snapshots.', metric:'bigIncrease', targets:[50,100,150,200,250], unit:'Testaments'},
+            {id:'positiveGrowth', name:'Rising Force', category:'Growth', desc:'Keep your positive gains strong across your recorded snapshots.', metric:'avgPositive', targets:[15,30,45,60,75], unit:'Testaments per interval'},
+            {id:'growthStreak', name:'Momentum', category:'Growth', desc:'Keep the momentum going with longer streaks of positive changes.', metric:'maxRun', targets:[1,3,5,7,9], unit:'consecutive intervals'},
+            {id:'rivalry', name:'Rival Slayer', category:'Ranking', desc:'Climb past other players and make your way up the clan rankings.', metric:'overtakes', targets:[1,3,5,7,9], unit:'overtakes'},
+            {id:'consistency', name:'Unwavering', category:'Consistency', desc:'Keep your scores steady and build a stronger consistency rating.', metric:'consistency', targets:[15,30,45,60,75], unit:'consistency score'},
+            {id:'longevity', name:'Endurance', category:'Longevity', desc:'Stay active over a longer stretch of your recorded Testaments history.', metric:'duration', targets:[7,30,90,180,365], unit:'days'},
+            {id:'persistence', name:'Relentless', category:'Consistency', desc:'Stack up more positive changes throughout your recorded history.', metric:'positiveCount', targets:[10,20,30,40,50], unit:'positive intervals'}
+          ];
+          function evaluate(name, achievement) {
+            if (!name) return {available:false, value:0};
+            const current = dataFor(name);
+            const raw = current[achievement.metric];
+            return {available:Number.isFinite(raw), value:Number.isFinite(raw) ? Math.max(0,raw) : 0};
           }
-          function isUnlocked(value, achievement, target) {
-            return Number.isFinite(value) && (achievement.rank ? value <= target : value >= target);
+          function getTiers(name, achievement) {
+            const metric = evaluate(name, achievement);
+            const source = dataFor(name);
+            const rivalryEternal = achievement.id === 'rivalry' && Number(source.rank) === 1;
+            return tiers.map((tier, index) => {
+              const target = achievement.targets[index];
+              const passed = metric.available && (rivalryEternal || (achievement.rank ? metric.value > 0 && metric.value <= target : metric.value >= target));
+              return {...tier, target, passed, available:metric.available, progress:metric.value, unlocked:passed};
+            });
           }
           function renderAchievements() {
-            const name = typeof selectedPlayer !== 'undefined' && getNames().includes(selectedPlayer) ? selectedPlayer : '';
+            const name = typeof selectedPlayer !== 'undefined' && names.includes(selectedPlayer) ? selectedPlayer : '';
             const empty = $('achievementEmptyState');
             if (!name) {
               empty.classList.remove('hidden');
+              empty.textContent = 'Select a player from Player Bubble to view achievements.';
+              $('achievementProfileHeading').classList.add('hidden');
+              $('achievementPlayerName').classList.add('hidden');
+              $('achievementPlayerName').textContent = '';
+              $('achievementOverviewStats').innerHTML = '';
               $('achievementStats').innerHTML = '';
               $('achievementGrid').innerHTML = '';
               return;
             }
             empty.classList.add('hidden');
-            const results = cfg.map(achievement => {
-              const value = metricFor(name, achievement);
-              const tierResults = tiers.map((tier,index) => ({...tier,target:achievement.targets[index],unlocked:isUnlocked(value,achievement,achievement.targets[index])}));
-              return {...achievement,value,tiers:tierResults};
-            });
-            const counts = Object.fromEntries(tiers.map(tier => [tier.name,0]));
+            $('achievementProfileHeading').classList.remove('hidden');
+            $('achievementPlayerName').classList.remove('hidden');
+            const results = cfg.map(achievement => ({...achievement, tiers:getTiers(name, achievement)}));
+            const counts = Object.fromEntries(tiers.map(tier => [tier.name, 0]));
             results.forEach(achievement => {
-              let highest = -1;
-              achievement.tiers.forEach((tier,index)=>{if(tier.unlocked) highest=index;});
-              if (highest >= 0) counts[tiers[highest].name]++;
-            });
-            $('achievementStats').innerHTML = tiers.map(tier => `<div class="min-w-0 rounded-xl border border-slate-700/60 bg-slate-900/45 px-1 py-3 text-center"><div class="flex items-center justify-center gap-1 text-[10px] sm:text-xs font-bold whitespace-nowrap" style="${tierColor(tier)}"><span aria-hidden="true">${tier.icon}</span><span>${tier.name}</span></div><div class="text-lg sm:text-xl font-bold mt-1 text-white">${counts[tier.name]}</div></div>`).join('');
-            $('achievementGrid').innerHTML = results.map(achievement => {
-              let highestIndex = -1;
-              achievement.tiers.forEach((tier,index)=>{if(tier.unlocked) highestIndex=index;});
-              const highest = highestIndex >= 0 ? achievement.tiers[highestIndex] : null;
-              const nextIndex = highestIndex + 1;
-              const nextTier = nextIndex < tiers.length ? achievement.tiers[nextIndex] : null;
-              const displayTier = highest || null;
-              let progressText = 'Not unlocked';
-              let progressPercent = 0;
-              if (achievement.value !== null) {
-                if (!nextTier) { progressText = 'Highest tier achieved'; progressPercent = 100; }
-                else if (achievement.rank) {
-                  progressText = `Rank #${fmt(achievement.value)} · requires ${nextTier.target === 1 ? 'Rank 1' : `Top ${nextTier.target}`}`;
-                  progressPercent = Math.max(0,Math.min(100,nextTier.target / achievement.value * 100));
-                } else {
-                  progressText = `${fmt(achievement.value)} / ${fmt(nextTier.target)} ${achievement.unit}`;
-                  progressPercent = Math.max(0,Math.min(100,achievement.value / nextTier.target * 100));
-                }
+              const achieved = achievement.tiers.filter(tier => tier.unlocked);
+              if (achieved.length) {
+                const highestIndex = tiers.findIndex(tier => tier.name === achieved[achieved.length - 1].name);
+                tiers.forEach((tier, index) => { if (highestIndex >= index) counts[tier.name]++; });
               }
-              const collapsedSummary = displayTier ? `<span class="inline-flex items-center gap-1 text-[11px] font-bold shrink-0" style="${tierColor(displayTier)}"><span aria-hidden="true">${displayTier.icon}</span><span>${displayTier.name}</span></span>` : '<span class="text-[11px] font-semibold text-slate-400 shrink-0">Not Unlocked</span>';
-              const expandedDetails = achievement.tiers.map(tier => {
-                const requirement = achievement.rank ? (tier.target === 1 ? 'Rank 1' : `Top ${tier.target}`) : `Reach ${fmt(tier.target)} ${achievement.unit}`;
-                let progress;
-                let percent = 0;
-                if (achievement.value === null) progress = 'Progress unavailable';
-                else if (achievement.rank) {
-                  progress = tier.unlocked ? `Current rank #${fmt(achievement.value)} · requirement met` : `Current rank #${fmt(achievement.value)} · need ${tier.target === 1 ? 'Rank 1' : `#${tier.target} or better`}`;
-                  percent = Math.max(0,Math.min(100,tier.target / achievement.value * 100));
-                } else {
-                  progress = tier.unlocked ? `${fmt(achievement.value)} / ${fmt(tier.target)} ${achievement.unit} · requirement met` : `${fmt(achievement.value)} / ${fmt(tier.target)} ${achievement.unit}`;
-                  percent = Math.max(0,Math.min(100,achievement.value / tier.target * 100));
-                }
-                return `<div class="ach-tier-detail rounded-xl p-3 ${tier.unlocked ? 'bg-slate-800/70' : 'bg-slate-950/50'}" style="${tierBorder(tier)}"><div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-lg" style="${tierColor(tier)}">${tier.icon}</span><span class="text-sm font-bold" style="${tierColor(tier)}">${tier.name}</span></div><span class="text-[10px] font-bold" style="color:${tier.unlocked ? tier.color : '#94a3b8'} !important">${tier.unlocked ? 'UNLOCKED' : 'LOCKED'}</span></div><p class="text-xs text-slate-300 mt-2">${requirement}</p><p class="text-xs text-slate-400 mt-1">${progress}</p><div class="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-2"><div class="h-full rounded-full bg-slate-300" style="width:${percent}%"></div></div></div>`;
-              }).join('');
+            });
+            const unlockedTierCount = results.reduce((sum, achievement) => sum + achievement.tiers.filter(tier => tier.unlocked).length, 0);
+            const unlockedChallengeCount = results.filter(achievement => achievement.tiers.some(tier => tier.unlocked)).length;
+            const totalTierCount = results.length * tiers.length;
+            const overallProgress = totalTierCount ? unlockedTierCount / totalTierCount * 100 : 0;
+            $('achievementOverviewStats').textContent = `${unlockedTierCount}/${totalTierCount} tiers unlocked · Overall Progress ${overallProgress.toFixed(1)}%`;
+            $('achievementPlayerName').textContent = `${name} · ${unlockedTierCount}/${totalTierCount} tiers unlocked · Overall Progress ${overallProgress.toFixed(1)}%`;
+            $('achievementStats').innerHTML = tiers.map(tier => `<div class="min-w-0 px-0.5 py-2 text-center"><div class="flex items-center justify-center gap-1 text-[10px] sm:text-xs font-bold whitespace-nowrap" style="${tierColor(tier)}"><span aria-hidden="true">${tier.icon}</span><span>${tier.name}</span></div><div class="text-lg sm:text-xl font-bold mt-1 text-white">${counts[tier.name]}</div></div>`).join('');
+            $('achievementGrid').innerHTML = results.map(achievement => {
+              const unlockedTiers = achievement.tiers.filter(tier => tier.unlocked);
+              const highest = unlockedTiers[unlockedTiers.length-1] || null;
+              const metric = evaluate(name, achievement);
               const expanded = expandedCards.has(achievement.id);
-              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${progressText}</div><div class="h-2 bg-slate-800 rounded-full overflow-hidden mt-2"><div class="h-full rounded-full bg-slate-300" style="width:${progressPercent}%"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
+              const currentMetricText = achievement.rank
+                ? (metric.available ? `${achievement.id === 'ranking' ? 'Best Rank' : 'Current Rank'}: #${fmt(metric.value)}` : `${achievement.id === 'ranking' ? 'Best Rank' : 'Current Rank'}: Unavailable`)
+                : (metric.available ? `Current Progress: ${fmt(metric.value)} ${esc(achievement.unit)}` : 'Progress unavailable');
+              const highestIndex = highest ? tiers.findIndex(tier => tier.name === highest.name) : -1;
+              const nextTier = highestIndex < tiers.length - 1 ? achievement.tiers[highestIndex + 1] : null;
+              const collapsedSummary = highest
+                ? `<span class="inline-flex items-center gap-1 text-[11px] font-bold ach-tier-status shrink-0" style="${tierColor(highest)}"><span aria-hidden="true">${highest.icon}</span><span>${highest.name}</span></span>`
+                : '<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 shrink-0"><span>◇</span><span>Not Unlocked</span></span>';
+              const nextTarget = nextTier ? Number(nextTier.target) : (highest ? Number(highest.target) : Number(achievement.targets[0]));
+              const collapsedPercent = !metric.available ? 0 : achievement.rank
+                ? (metric.value > 0 && nextTarget > 0 ? Math.max(0,Math.min(100,nextTarget / metric.value * 100)) : 0)
+                : (nextTarget > 0 ? Math.max(0,Math.min(100,metric.value / nextTarget * 100)) : 0);
+              const collapsedProgressText = !metric.available
+                ? '—'
+                : achievement.rank
+                  ? `#${fmt(metric.value)} / #${fmt(nextTarget)} rank`
+                  : `${fmt(metric.value)} / ${fmt(nextTarget)} ${esc(achievement.unit)}`;
+              const expandedDetails = achievement.tiers.map(tier => {
+                const state = tier.unlocked ? 'Achieved' : 'Locked';
+                const requirement = achievement.rank ? (tier.target === 1 ? 'Rank 1' : `Top ${tier.target}`) : `Reach ${fmt(tier.target)} ${esc(achievement.unit)}`;
+                let tierProgress = 'Progress unavailable';
+                if (metric.available) {
+                  if (achievement.id === 'rivalry' && Number(dataFor(name).rank) === 1) tierProgress = `Current rank: #1 · Eternal unlocked automatically`;
+                  else if (achievement.rank) tierProgress = `${achievement.id === 'ranking' ? 'Best rank' : 'Current rank'}: #${fmt(metric.value)} · ${tier.unlocked ? 'Requirement met' : `Need rank ${tier.target === 1 ? '1' : `#${tier.target} or better`}`}`;
+                  else tierProgress = `Progress: ${fmt(metric.value)} / ${fmt(tier.target)} ${esc(achievement.unit)}`;
+                }
+                const percent = !metric.available ? 0 : achievement.rank
+                  ? (metric.value > 0 ? Math.max(0,Math.min(100,tier.target / metric.value * 100)) : 0)
+                  : Math.max(0,Math.min(100,metric.value / Math.max(Number.EPSILON,tier.target) * 100));
+                return `<div class="ach-tier-detail rounded-xl p-3 ${tier.unlocked ? 'bg-slate-800/70' : 'bg-slate-950/50'}" style="${tierBorder(tier)}"><div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-lg" style="${tierColor(tier)}">${tier.icon}</span><span class="text-sm font-bold ach-tier-name" style="${tierColor(tier)}">${tier.name}</span></div><span class="text-[10px] font-bold ach-tier-state" style="${tier.unlocked ? `color:${tier.color} !important` : 'color:#94a3b8 !important'}">${state.toUpperCase()}</span></div><p class="text-xs text-slate-300 mt-2">${requirement}</p><div class="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-2"><div class="h-full rounded-full ach-progress-fill" style="width:${percent}%"></div></div></div>`;
+              }).join('');
+              const cardTier = highest || tiers[0];
+              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="h-2 bg-slate-800 rounded-full overflow-hidden mt-2"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-[10px] uppercase tracking-[.18em] text-indigo-300 font-bold mt-4">${esc(achievement.category)}</p><p class="text-sm text-slate-300 mt-2">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
             }).join('');
           }
-          const expandedCards = new Set();
           $('achievementGrid').addEventListener('click', event => {
             const button = event.target.closest('[data-ach-toggle]');
             if (!button) return;
@@ -1819,35 +2316,5 @@
           renderAchievements();
         })();
     </script>
-<script>
-/* Navigation safety patch: normalize every tab/section pair before legacy handlers run. */
-(function () {
-  const navMap = {
-    tabPlayer: 'playerSection',
-    tabCompare: 'compareSection',
-    tabClan: 'clanSection',
-    tabLeaderboard: 'leaderboardSection'
-  };
-  const nav = document.querySelector('nav[aria-label="Main navigation"]');
-  if (!nav) return;
-  nav.addEventListener('click', function (event) {
-    const button = event.target.closest('button[id]');
-    if (!button || !Object.prototype.hasOwnProperty.call(navMap, button.id)) return;
-    const targetId = navMap[button.id];
-    Object.entries(navMap).forEach(([buttonId, sectionId]) => {
-      const tab = document.getElementById(buttonId);
-      const section = document.getElementById(sectionId);
-      const isActive = buttonId === button.id;
-      if (tab) tab.classList.toggle('active', isActive);
-      if (section) {
-        section.classList.toggle('active', isActive);
-        section.style.display = isActive ? 'block' : 'none';
-        section.setAttribute('aria-hidden', isActive ? 'false' : 'true');
-      }
-    });
-    // The normal target handler still runs and refreshes the selected tab's content.
-  }, true);
-})();
-</script>
 </div></div></body>
 </html>
