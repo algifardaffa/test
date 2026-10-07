@@ -1520,7 +1520,7 @@
             const rankDown=names.filter(n=>(previousRanks[n]??ranks[n])<ranks[n]).length;
             const above=latestScores.filter(v=>v>mean).length;
             const cards=[
-                ['Clan Momentum','↗',weeklyClanDelta>0?`Gain+${weeklyClanDelta.toFixed(1)} scores with average +${weeklyAverageDelta.toFixed(1)} scores per player.`:weeklyClanDelta<0?`Gain${weeklyClanDelta.toFixed(1)} scores with average ${weeklyAverageDelta.toFixed(1)} scores per player.`:`Clan scores remain unchanged`,weeklyClanDelta>0?'positive':weeklyClanDelta<0?'negative':'neutral'],
+                ['Clan Momentum','↗',weeklyClanDelta>0?`Gain+${weeklyClanDelta.toFixed(1)} scores this week`:weeklyClanDelta<0?`Gain${weeklyClanDelta.toFixed(1)} scores this week.`:`Clan scores remain unchanged`,weeklyClanDelta>0?'positive':weeklyClanDelta<0?'negative':'neutral'],
                 ['Rank Movement','↕',`${rankUp} player${rankUp===1?'':'s'} moved up and ${rankDown} moved down`,rankUp>rankDown?'positive':rankDown>rankUp?'negative':'neutral'],
                 ['Personal Best','🏆',`${improving} of ${names.length} players did a personal best`,improving>names.length/2?'positive':improving?'neutral':'negative'],
                 ['Clan Gap','↔',`${above} of ${names.length} players are above the clan average`,above>names.length/2?'positive':'neutral']
@@ -2300,21 +2300,23 @@
                 : achievement.rank
                   ? `Top #${fmt(nextTarget)}`
                   : ({
-                      collector:`${fmt(metric.value)}/${fmt(nextTarget)} LME`,
+                      collector:`${fmt(metric.value)}/${fmt(nextTarget)} LME Done`,
                       peak:`${fmt(metric.value)}/${fmt(nextTarget)} Scores`,
-                      bigLeap:`${fmt(metric.value)}/${fmt(nextTarget)} Scores a week`,
-                      positiveGrowth:`${fmt(metric.value)}/${fmt(nextTarget)} growth`,
-                      growthStreak:`${fmt(metric.value)}/${fmt(nextTarget)} streaks`,
-                      consistency:`${fmt(metric.value)}%/${fmt(nextTarget)}% consistency`,
-                      persistence:`${fmt(metric.value)}/${fmt(nextTarget)} better`
+                      bigLeap:`${fmt(metric.value)}/${fmt(nextTarget)} Scores a Week`,
+                      positiveGrowth:`${fmt(metric.value)}/${fmt(nextTarget)} Growth`,
+                      growthStreak:`${fmt(metric.value)}/${fmt(nextTarget)} Streaks`,
+                      rivalry:`${fmt(metric.value)}/${fmt(nextTarget)} Overtakes`,
+                      consistency:`${fmt(metric.value)}%/${fmt(nextTarget)}% Consistency`,
+                      longevity:`${fmt(metric.value)}/${fmt(nextTarget)} Days`,
+                      persistence:`${fmt(metric.value)}/${fmt(nextTarget)} Better weeks`
                     }[achievement.id] || `${fmt(metric.value)} / ${fmt(nextTarget)} ${esc(achievement.unit)}`);
               const expandedDetails = achievement.tiers.map(tier => {
                 const state = tier.unlocked ? 'Achieved' : 'Locked';
                 const requirement = achievement.rank ? `Top #${fmt(tier.target)}` : ({
                   collector:`Do ${fmt(tier.target)} LME`,
-                  peak:`Reach ${fmt(tier.target)} Scores`,
-                  bigLeap:`Gain ${fmt(tier.target)} Scores a week`,
-                  positiveGrowth:`Reach +${fmt(tier.target)} Growth`,
+                  peak:`Reach ${fmt(tier.target)} scores`,
+                  bigLeap:`Gain ${fmt(tier.target)} scores a week`,
+                  positiveGrowth:`Reach ${fmt(tier.target)} growth`,
                   growthStreak:`Get ${fmt(tier.target)} streaks`,
                   rivalry:`Overtake ${fmt(tier.target)} players`,
                   consistency:`Reach ${fmt(tier.target)}% consistency`,
