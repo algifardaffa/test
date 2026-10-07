@@ -96,6 +96,22 @@
 .ach-card .ach-tier-detail .ach-tier-state { color: inherit; }
 .ach-card .ach-progress-fill { background: inherit; }
 </style>
+<style id="achievement-progress-bars-v48">
+/* Achievement progress bars match the thin leaderboard bars and use the tier color. */
+.ach-card .ach-progress-track {
+  height: .32rem !important;
+  background: #0f172a !important;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: .5rem;
+}
+.ach-card .ach-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  min-width: 0;
+}
+</style>
 </head>
 <body class="min-h-screen bg-slate-900 text-slate-100 pb-12">
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
@@ -1968,10 +1984,10 @@
                 const percent = !metric.available ? 0 : achievement.rank
                   ? (metric.value > 0 ? Math.max(0,Math.min(100,tier.target / metric.value * 100)) : 0)
                   : Math.max(0,Math.min(100,metric.value / Math.max(Number.EPSILON,tier.target) * 100));
-                return `<div class="ach-tier-detail rounded-xl p-3 ${tier.unlocked ? 'bg-slate-800/70' : 'bg-slate-950/50'}" style="${tierBorder(tier)}"><div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-lg" style="${tierColor(tier)}">${tier.icon}</span><span class="text-sm font-bold ach-tier-name" style="${tierColor(tier)}">${tier.name}</span></div><span class="text-[10px] font-bold ach-tier-state" style="${tier.unlocked ? `color:${tier.color} !important` : 'color:#94a3b8 !important'}">${state.toUpperCase()}</span></div><p class="text-xs text-slate-300 mt-2">${requirement}</p><div class="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-2"><div class="h-full rounded-full ach-progress-fill" style="width:${percent}%"></div></div></div>`;
+                return `<div class="ach-tier-detail rounded-xl p-3 ${tier.unlocked ? 'bg-slate-800/70' : 'bg-slate-950/50'}" style="${tierBorder(tier)}"><div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-lg" style="${tierColor(tier)}">${tier.icon}</span><span class="text-sm font-bold ach-tier-name" style="${tierColor(tier)}">${tier.name}</span></div><span class="text-[10px] font-bold ach-tier-state" style="${tier.unlocked ? `color:${tier.color} !important` : 'color:#94a3b8 !important'}">${state.toUpperCase()}</span></div><p class="text-xs text-slate-300 mt-2">${requirement}</p><div class="ach-progress-track"><div class="ach-progress-fill" style="width:${percent}%;background:${tier.color} !important"></div></div></div>`;
               }).join('');
               const cardTier = highest || tiers[0];
-              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="h-2 bg-slate-800 rounded-full overflow-hidden mt-2"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-[10px] uppercase tracking-[.18em] text-indigo-300 font-bold mt-4">${esc(achievement.category)}</p><p class="text-sm text-slate-300 mt-2">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
+              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="ach-progress-track"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%;background:${cardTier.color} !important"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-[10px] uppercase tracking-[.18em] text-indigo-300 font-bold mt-4">${esc(achievement.category)}</p><p class="text-sm text-slate-300 mt-2">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
             }).join('');
           }
           $('achievementGrid').addEventListener('click', event => {
