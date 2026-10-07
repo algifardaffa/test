@@ -87,7 +87,7 @@
 .ach-card .ach-tier-detail { border-color:rgba(51,65,85,.6) !important; }
 .ach-card .ach-tier-detail .ach-tier-name { color:#cbd5e1 !important; }
 .ach-card .ach-tier-detail .ach-tier-state { color:#94a3b8 !important; }
-.ach-card .ach-progress-fill { background:#64748b !important; }
+.ach-card .ach-progress-fill { background:rgb(66,66,66) !important; }
 </style>
 <style id="achievement-tier-colors-v47">
 /* Reference palette: tier names/icons/bars use their tier color; Achieved stays green. */
@@ -116,7 +116,7 @@
 /* FINAL: achievement progress bars are always soft/dim white, never tier-colored. */
 .ach-card .ach-progress-fill,
 .ach-card .ach-progress-fill[style] {
-  background:#64748b !important;
+  background:rgb(66,66,66) !important;
   box-shadow:none !important;
 }
 </style>
@@ -130,7 +130,7 @@
 #playerInsights.player-insights-collapsed{margin-bottom:0}
 </style>
 <style id="achievement-progress-monochrome-final">
-.ach-card .ach-progress-fill { background:#64748b !important; }
+.ach-card .ach-progress-fill { background:rgb(66,66,66) !important; }
 </style>
 </head>
 <body class="min-h-screen bg-slate-900 text-slate-100 pb-12">
@@ -494,6 +494,21 @@
         let rawPlayerData = {};
         let playerNames = [];
         let selectedPlayer = '';
+
+        // Visual-only dummy series for the initial Player view. It is NEVER included
+        // in playerNames, rankings, attributes, insights, leaderboard, achievements,
+        // clan calculations, or any real-player statistics.
+        const PLAYER_DUMMY_SERIES = [
+            50.00, 48.41, 51.59, 45.23, 54.77, 42.05, 57.95, 38.88, 61.12, 35.74,
+            64.26, 32.65, 67.35, 29.63, 70.37, 26.70, 73.30, 23.88, 76.12, 21.17,
+            78.83, 18.60, 81.40, 16.17, 83.83, 13.91, 86.09, 11.83, 88.17, 9.94,
+            90.06, 8.26, 91.74, 6.79, 93.21, 5.55, 94.45, 4.54, 95.46, 3.77,
+            96.23, 3.24, 96.76, 2.95, 97.05, 2.90, 97.10, 3.09, 96.91, 3.52,
+            96.48, 4.19, 95.81, 5.09, 94.91, 6.22, 93.78, 7.58, 92.42, 9.16,
+            90.84, 10.95, 89.05, 12.95, 87.05, 15.14, 84.86, 17.52, 82.48, 20.07,
+            79.93, 22.77, 77.23, 25.61, 74.39, 28.57, 71.43, 31.63, 68.37, 34.77,
+            65.23, 37.97, 62.03, 41.20, 58.80, 44.43, 55.57, 47.64, 52.36, 50.00
+        ];
 
         // Derived-data caches. Sheet data is already in memory after loading,
         // so repeated rank/metric calculations should be reused.
@@ -929,6 +944,19 @@
         }
 
         function getChartSeries(playerName, mode, range) {
+            // Empty Player selection is a visual-only dummy state. It disappears
+            // immediately once a real nickname is selected.
+            if (playerName === '' && mode !== 'rank') {
+                const dummyDates = dates.slice(-PLAYER_DUMMY_SERIES.length);
+                const dummyData = PLAYER_DUMMY_SERIES.slice(-dummyDates.length).map(Number);
+                if (range === '3m') return { dates: dummyDates.slice(-13), data: dummyData.slice(-13) };
+                if (range === '1y') return { dates: dummyDates.slice(-52), data: dummyData.slice(-52) };
+                if (mode === 'growth') {
+                    const growth = dummyData.map((value, i) => i === 0 ? null : Number((value - dummyData[i - 1]).toFixed(2)));
+                    return { dates: dummyDates, data: growth };
+                }
+                return { dates: dummyDates, data: dummyData };
+            }
             if (mode === 'rank') return getRankSeries(playerName, range);
             if (isClanCompare(playerName)) {
                 const series = getClanAverageSeries();
@@ -1201,7 +1229,10 @@
             // No player selected = intentionally blank Player visualization.
             // Never fall back to Tancred or any other real player.
             if (!selectedPlayer || !hasPlayerHistory(selectedPlayer)) {
-                renderPlayerPlaceholderChart();
+                // Default Player view: show the visual-only dummy series. It is not a
+                // real player and is excluded from every statistic/calculation.
+                if (playerChartMode === 'rank') renderPlayerPlaceholderChart();
+                else renderChart('playerChart', [''], playerChartMode, playerChartRange, chartTitle, 'player');
                 updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
                 updatePlayerAttributes();
                 renderPlayerInsights();
@@ -1784,15 +1815,14 @@
             const horizon = forecastHorizon;
             let pairedAll;
 
-            // No real player selected: keep metrics blank but preserve the chart grid,
-            // matching the empty Compare visualization state.
+            // No real player selected: show the same visual-only dummy series used
+            // by the default Player visualization. It is never treated as a player.
             if (!hasPlayerHistory(target)) {
-                renderForecastPlaceholderChart();
-                if (forecastPlayerName) forecastPlayerName.textContent = '—';
-                document.getElementById('forecastLatest').textContent = '—';
-                document.getElementById('forecastProjected').textContent = '—';
-                document.getElementById('forecastChange').textContent = '—';
-                return;
+                const dummyDates = dates.slice(-PLAYER_DUMMY_SERIES.length);
+                const dummyData = PLAYER_DUMMY_SERIES.slice(-dummyDates.length).map(Number);
+                pairedAll = dummyDates.map((date, i) => ({ date, value: dummyData[i] }))
+                    .filter(point => Number.isFinite(point.value));
+                if (forecastPlayerName) forecastPlayerName.textContent = 'Dummy';
             } else {
                 if (forecastPlayerName) forecastPlayerName.textContent = target;
                 const series = getPlayerSeries(target);
@@ -1913,7 +1943,7 @@
                 return;
             }
             populateDatalist();
-            // Keep initial Player selection empty; never auto-select a real player.
+            // Keep initial Player selection empty: this intentionally shows the visual-only dummy.
             if (playerSearch) playerSearch.value = selectedPlayer;
             updatePlayer(false);
             updateCompare();
