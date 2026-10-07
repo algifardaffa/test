@@ -1168,7 +1168,7 @@
             const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
             attrs.forEach(([id, icon, value], i) => {
                 const iconColor = iconColors[i % iconColors.length];
-                document.getElementById(id).innerHTML = `<div><span class="${id === 'playerAttrBigIncrease' ? 'text-white' : 'text-slate-400'} text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${id === 'playerAttrBigIncrease' ? '#22c55e' : iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
+                document.getElementById(id).innerHTML = `<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${id === 'playerAttrBigIncrease' ? '#22c55e' : iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
             });
         }
 
@@ -1200,7 +1200,7 @@
                 section.classList.remove('player-insights-collapsed');
                 list.innerHTML = [
                     ['Momentum','↗','—','neutral'],
-                    ['Personal Record','🏆','—','neutral'],
+                    ['Personal Best','🏆','—','neutral'],
                     ['Clan Rank','◉','—','neutral'],
                     ['Clan Gap','↔','—','neutral']
                 ].map(([title,icon,desc,status])=>`<div class="rounded-xl border p-3 border-slate-600/60 bg-slate-900/40"><div class="flex items-center gap-2 text-xs font-bold text-white"><span>${icon}</span><span>${title}</span></div><p class="text-xs text-slate-400 mt-1.5 leading-relaxed">${desc}</p></div>`).join('');
@@ -1225,15 +1225,15 @@
             // Personal Record is a day-to-day/latest-snapshot comparison, not an all-time record.
             if (valid.length >= 2) {
                 const latest=valid[valid.length-1].v, previous=valid[valid.length-2].v;
-                if (latest > previous) add('Personal Record','🏆',`Score increased from ${previous.toLocaleString('en-US')} to ${latest.toLocaleString('en-US')} compared with the previous snapshot.`,'positive');
-                else add('Personal Record','🏆',`Score ${latest === previous ? 'is unchanged' : 'decreased'} compared with the previous snapshot (${previous.toLocaleString('en-US')} → ${latest.toLocaleString('en-US')}).`,'negative');
+                if (latest > previous) add('Personal Best','🏆',`Score increased from ${previous.toLocaleString('en-US')} to ${latest.toLocaleString('en-US')}`,'positive');
+                else add('Personal Best','🏆',latest === previous ? `Score is unchanged from ${previous.toLocaleString('en-US')} to ${latest.toLocaleString('en-US')}` : `Score decreased from ${previous.toLocaleString('en-US')} to ${latest.toLocaleString('en-US')}` , latest === previous ? 'neutral' : 'negative');
                 // Rank is calculated independently at the latest two snapshots; lower rank number is better.
                 const latestIdx = dates.length - 1;
                 const latestRank = getClanRanksAtIndex(latestIdx)[selectedPlayer];
                 const previousRank = latestIdx > 0 ? getClanRanksAtIndex(latestIdx - 1)[selectedPlayer] : undefined;
                 if (Number.isFinite(latestRank) && Number.isFinite(previousRank)) {
                     const status=latestRank<previousRank?'positive':latestRank>previousRank?'negative':'neutral';
-                    const description=status==='positive'?`Rank improved from #${previousRank} to #${latestRank} compared with the previous snapshot.`:status==='negative'?`Rank fell from #${previousRank} to #${latestRank} compared with the previous snapshot.`:`Rank stayed at #${latestRank} compared with the previous snapshot.`;
+                    const description=status==='positive'?`Rank rose from #${previousRank} to #${latestRank}`:status==='negative'?`Rank fell from #${previousRank} to #${latestRank}`:`Rank stayed at #${latestRank}.`;
                     add('Clan Rank','◉',description,status);
                 }
             }
@@ -1241,7 +1241,7 @@
                 const latestIndex=series.startIndex+series.data.length-1;
                 const clanScores=playerNames.filter(n=>hasPlayerHistory(n)).map(n=>{const ps=getPlayerSeries(n); const i=latestIndex-ps.startIndex; return i>=0&&i<ps.data.length?Number(ps.data[i]):NaN;}).filter(Number.isFinite);
                 const playerLatest=valid[valid.length-1].v;
-                if (clanScores.length && clanScores.some(v=>v!==playerLatest || true)) { const avg=clanScores.reduce((a,b)=>a+b,0)/clanScores.length; if(avg!==0){const pct=(playerLatest-avg)/Math.abs(avg)*100; const neutral=Math.abs(pct)<=INSIGHT_CONFIG.clanNeutralPct; add('Clan Gap',neutral?'↔':pct>0?'↑':'↓',neutral?`Latest score is within ${INSIGHT_CONFIG.clanNeutralPct}% of the clan average.`:`${pct>0?'Above':'Below'} Clan Average: score is ${Math.abs(pct).toFixed(1)}% ${pct>0?'above':'below'} the clan average.`,neutral?'neutral':pct>0?'positive':'negative');} }
+                if (clanScores.length && clanScores.some(v=>v!==playerLatest || true)) { const avg=clanScores.reduce((a,b)=>a+b,0)/clanScores.length; if(avg!==0){const pct=(playerLatest-avg)/Math.abs(avg)*100; const neutral=Math.abs(pct)<=INSIGHT_CONFIG.clanNeutralPct; add('Clan Gap',neutral?'↔':pct>0?'↑':'↓',neutral?`Score is within ${INSIGHT_CONFIG.clanNeutralPct}% of the clan average.`:pct>0?`Score is ${Math.abs(pct).toFixed(1)}% above the clan average.`:`Score is ${Math.abs(pct).toFixed(1)}% below the clan average.`,neutral?'neutral':pct>0?'positive':'negative');} }
             }
             const colors={positive:'border-emerald-500/30 bg-emerald-500/5',negative:'border-rose-500/30 bg-rose-500/5',neutral:'border-slate-600/60 bg-slate-900/40'};
             list.innerHTML=insights.map(x=>`<div class="rounded-xl border p-3 ${colors[x.status]}"><div class="flex items-center gap-2 text-xs font-bold text-white"><span>${x.icon}</span><span>${x.title}</span></div><p class="text-xs text-slate-300 mt-1.5 leading-relaxed">${x.desc}</p></div>`).join('');
@@ -1343,7 +1343,7 @@
             const cards=[
                 ['Clan Momentum','↗',`Clan points ${weeklyDelta>=0?'increased':'decreased'} by ${weeklyDelta>=0?'+':''}${weeklyDelta.toLocaleString()} vs last week. Only submitted scores are included.`,weeklyDelta>0?'positive':weeklyDelta<0?'negative':'neutral'],
                 ['Rank Movement','↕',`${rankUp} player${rankUp===1?'':'s'} moved up and ${rankDown} moved down among players who submitted scores in both snapshots.`,rankUp>rankDown?'positive':rankDown>rankUp?'negative':'neutral'],
-                ['Personal Records','🏆',`${improving} of ${latestScores.length} players with scores in both snapshots increased their score this week.`,improving>latestScores.length/2?'positive':improving?'neutral':'negative'],
+                ['Personal Best','🏆',`${improving} of ${latestScores.length} players with scores in both snapshots increased their score this week.`,improving>latestScores.length/2?'positive':improving?'neutral':'negative'],
                 ['Clan Gap','↔',`${above} of ${latestScores.length} players who submitted this week are above the current clan average; the remaining ${latestScores.length-above} are at or below it.`,above>latestScores.length/2?'positive':'neutral']
             ];
             const colors={positive:'border-emerald-500/30 bg-emerald-500/5',negative:'border-rose-500/30 bg-rose-500/5',neutral:'border-slate-600/60 bg-slate-900/40'};
@@ -1482,10 +1482,10 @@
             const consistencyLeader = best('consistency', true);
 
             const cards = [
-                ['Momentum','↗',`${compareDisplayName(momentum.name)} has the strongest recent momentum with an average growth of ${momentum.avgGrowth>=0?'+':''}${momentum.avgGrowth.toFixed(1)} per snapshot.`, 'positive'],
-                ['Rank Movement','↕',climber.delta>0?`${compareDisplayName(climber.name)} made the biggest rank improvement, moving up ${climber.delta} position${climber.delta===1?'':'s'}.`:`No selected player improved their rank in the latest snapshot.`, climber.delta>0?'positive':'neutral'],
-                ['Latest Performance','◆',`${compareDisplayName(latest.name)} currently has the highest latest score at ${Number(latest.latest).toLocaleString('en-US')}.`, 'positive'],
-                ['Consistency','◉',`${compareDisplayName(consistencyLeader.name)} is the most consistent with a consistency score of ${Number(consistencyLeader.consistency).toFixed(1)}%.`, 'positive']
+                ['Growth','↗',`${compareDisplayName(momentum.name)} has the strongest growth at ${momentum.avgGrowth>=0?'+':''}${momentum.avgGrowth.toFixed(1)}`, 'positive'],
+                ['Rank','↕',climber.delta>0?`${compareDisplayName(climber.name)} made the biggest rank jump at ↑ ${climber.delta}`:`No one improved their rank`, climber.delta>0?'positive':'neutral'],
+                ['Score','◆',`${compareDisplayName(latest.name)} has the highest score at ${Number(latest.latest).toLocaleString('en-US')}.`, 'positive'],
+                ['Consistency','◉',`${compareDisplayName(consistencyLeader.name)} is the most consistent at ${Number(consistencyLeader.consistency).toFixed(1)}%.`, 'positive']
             ];
             const colors={positive:'border-emerald-500/30 bg-emerald-500/5',negative:'border-rose-500/30 bg-rose-500/5',neutral:'border-slate-600/60 bg-slate-900/40'};
             list.innerHTML=cards.map(([title,icon,desc,status])=>`<div class="rounded-xl border p-3 ${colors[status]}"><div class="flex items-center gap-2 text-xs font-bold text-white"><span>${icon}</span><span>${title}</span></div><p class="text-xs text-slate-300 mt-1.5 leading-relaxed">${desc}</p></div>`).join('');
@@ -1520,10 +1520,10 @@
             const rankDown=names.filter(n=>(previousRanks[n]??ranks[n])<ranks[n]).length;
             const above=latestScores.filter(v=>v>mean).length;
             const cards=[
-                ['Clan Momentum','↗',`Clan points ${weeklyClanDelta>=0?'increased':'decreased'} by ${weeklyClanDelta>=0?'+':''}${weeklyClanDelta.toFixed(1)} vs last week; average change is ${weeklyAverageDelta>=0?'+':''}${weeklyAverageDelta.toFixed(1)} points per player.`,weeklyClanDelta>0?'positive':weeklyClanDelta<0?'negative':'neutral'],
+                ['Clan Momentum','↗',weeklyClanDelta>0?`Gain+${weeklyClanDelta.toFixed(1)} scores with average +${weeklyAverageDelta.toFixed(1)} scores per player.`:weeklyClanDelta<0?`Gain${weeklyClanDelta.toFixed(1)} scores with average ${weeklyAverageDelta.toFixed(1)} scores per player.`:`Clan scores remain unchanged`,weeklyClanDelta>0?'positive':weeklyClanDelta<0?'negative':'neutral'],
                 ['Rank Movement','↕',`${rankUp} player${rankUp===1?'':'s'} moved up and ${rankDown} moved down in the latest snapshot.`,rankUp>rankDown?'positive':rankDown>rankUp?'negative':'neutral'],
-                ['Personal Records','🏆',`${improving} of ${names.length} players recorded a higher latest score than their previous snapshot.`,improving>names.length/2?'positive':improving?'neutral':'negative'],
-                ['Clan Gap','↔',`${above} of ${names.length} players are above the current clan average; the remaining ${names.length-above} are at or below it.`,above>names.length/2?'positive':'neutral']
+                ['Personal Best','🏆',`${improving} of ${names.length} players did a personal best`,improving>names.length/2?'positive':improving?'neutral':'negative'],
+                ['Clan Gap','↔',`${above} of ${names.length} players are above the clan average`,above>names.length/2?'positive':'neutral']
             ];
             const colors={positive:'border-emerald-500/30 bg-emerald-500/5',negative:'border-rose-500/30 bg-rose-500/5',neutral:'border-slate-600/60 bg-slate-900/40'};
             list.innerHTML=cards.map(([title,icon,desc,status])=>`<div class="rounded-xl border p-3 ${colors[status]}"><div class="flex items-center gap-2 text-xs font-bold text-white"><span>${icon}</span><span>${title}</span></div><p class="text-xs text-slate-300 mt-1.5 leading-relaxed">${desc}</p></div>`).join('');
@@ -2193,16 +2193,16 @@
             return result;
           };
           const cfg = [
-            {id:'ranking', name:'Ascension', category:'Ranking', desc:'Push your rank higher and see how far you have climbed in the Testaments rankings.', metric:'bestRank', targets:[50,30,10,5,1], unit:'rank', rank:true},
-            {id:'collector', name:'Hoarder', category:'History', desc:'Keep building your Testaments history and collect more recorded snapshots.', metric:'observations', targets:[1,10,25,50,100], unit:'observations'},
-            {id:'peak', name:'Apex', category:'Apex', desc:'Set a new personal peak and see how high your Testaments score can go.', metric:'peak', targets:[500,1000,1500,2000,2500], unit:'Testaments'},
-            {id:'bigLeap', name:'Breakthrough', category:'Growth', desc:'Put together a big jump between two recorded Testaments snapshots.', metric:'bigIncrease', targets:[50,100,150,200,250], unit:'Testaments'},
-            {id:'positiveGrowth', name:'Rising Force', category:'Growth', desc:'Keep your positive gains strong across your recorded snapshots.', metric:'avgPositive', targets:[15,30,45,60,75], unit:'Testaments per interval'},
-            {id:'growthStreak', name:'Momentum', category:'Growth', desc:'Keep the momentum going with longer streaks of positive changes.', metric:'maxRun', targets:[1,3,5,7,9], unit:'consecutive intervals'},
-            {id:'rivalry', name:'Rival Slayer', category:'Ranking', desc:'Climb past other players and make your way up the clan rankings.', metric:'overtakes', targets:[1,3,5,7,9], unit:'overtakes'},
-            {id:'consistency', name:'Unwavering', category:'Consistency', desc:'Keep your scores steady and build a stronger consistency rating.', metric:'consistency', targets:[15,30,45,60,75], unit:'consistency score'},
-            {id:'longevity', name:'Endurance', category:'Longevity', desc:'Stay active over a longer stretch of your recorded Testaments history.', metric:'duration', targets:[7,30,90,180,365], unit:'days'},
-            {id:'persistence', name:'Relentless', category:'Consistency', desc:'Stack up more positive changes throughout your recorded history.', metric:'positiveCount', targets:[10,20,30,40,50], unit:'positive intervals'}
+            {id:'ranking', name:'Ascension', category:'Ranking', desc:'Climb higher and reach the top of the clan ranking.', metric:'bestRank', targets:[50,30,10,5,1], unit:'rank', rank:true},
+            {id:'collector', name:'Hoarder', category:'History', desc:'Keep doing more LME over time.', metric:'observations', targets:[1,10,25,50,100], unit:'observations'},
+            {id:'peak', name:'Apex', category:'Apex', desc:'Keep pushing your score to reach a higher peak.', metric:'peak', targets:[500,1000,1500,2000,2500], unit:'Testaments'},
+            {id:'bigLeap', name:'Breakthrough', category:'Growth', desc:'Get a bigger score gain in a single week.', metric:'bigIncrease', targets:[50,100,150,200,250], unit:'Testaments'},
+            {id:'positiveGrowth', name:'Rising Force', category:'Growth', desc:'Keep your growth going and reach higher gains.', metric:'avgPositive', targets:[15,30,45,60,75], unit:'Testaments per interval'},
+            {id:'growthStreak', name:'Momentum', category:'Growth', desc:'Keep your score going up for longer streaks.', metric:'maxRun', targets:[1,3,5,7,9], unit:'consecutive intervals'},
+            {id:'rivalry', name:'Rival Slayer', category:'Ranking', desc:'Keep overtaking other players in the clan ranking.', metric:'overtakes', targets:[1,3,5,7,9], unit:'overtakes'},
+            {id:'consistency', name:'Unwavering', category:'Consistency', desc:'Keep your scores steady and build higher consistency.', metric:'consistency', targets:[15,30,45,60,75], unit:'consistency score'},
+            {id:'longevity', name:'Endurance', category:'Longevity', desc:'Stay active and keep playing for longer.', metric:'duration', targets:[7,30,90,180,365], unit:'days'},
+            {id:'persistence', name:'Relentless', category:'Consistency', desc:'Keep getting better week after week.', metric:'positiveCount', targets:[10,20,30,40,50], unit:'positive intervals'}
           ];
           function evaluate(name, achievement) {
             if (!name) return {available:false, value:0};
@@ -2274,8 +2274,18 @@
               const metric = evaluate(name, achievement);
               const expanded = expandedCards.has(achievement.id);
               const currentMetricText = achievement.rank
-                ? (metric.available ? `${achievement.id === 'ranking' ? 'Best Rank' : 'Current Rank'}: #${fmt(metric.value)}` : `${achievement.id === 'ranking' ? 'Best Rank' : 'Current Rank'}: Unavailable`)
-                : (metric.available ? `Current Progress: ${fmt(metric.value)} ${esc(achievement.unit)}` : 'Progress unavailable');
+                ? (metric.available ? `Currently at #${fmt(metric.value)} rank.` : 'Rank unavailable.')
+                : metric.available ? ({
+                    collector:`Currently at ${fmt(metric.value)} LME.`,
+                    peak:`Currently at ${fmt(metric.value)} Scores.`,
+                    bigLeap:`Biggest gain is ${fmt(metric.value)} Scores a week.`,
+                    positiveGrowth:`Current growth is +${fmt(metric.value)}.`,
+                    growthStreak:`Current streak is ${fmt(metric.value)}.`,
+                    rivalry:`Currently overtaken ${fmt(metric.value)} players.`,
+                    consistency:`Current consistency is ${fmt(metric.value)}%.`,
+                    longevity:`Currently active for ${fmt(metric.value)} days.`,
+                    persistence:`Currently getting better for ${fmt(metric.value)} weeks.`
+                  }[achievement.id] || `Currently at ${fmt(metric.value)}.`) : 'Progress unavailable.';
               const highestIndex = highest ? tiers.findIndex(tier => tier.name === highest.name) : -1;
               const nextTier = highestIndex < tiers.length - 1 ? achievement.tiers[highestIndex + 1] : null;
               const collapsedSummary = highest
@@ -2292,7 +2302,17 @@
                   : `${fmt(metric.value)} / ${fmt(nextTarget)} ${esc(achievement.unit)}`;
               const expandedDetails = achievement.tiers.map(tier => {
                 const state = tier.unlocked ? 'Achieved' : 'Locked';
-                const requirement = achievement.rank ? (tier.target === 1 ? 'Rank 1' : `Top ${tier.target}`) : `Reach ${fmt(tier.target)} ${esc(achievement.unit)}`;
+                const requirement = achievement.rank ? `TOP #${fmt(tier.target)}` : ({
+                  collector:`Do ${fmt(tier.target)} LME`,
+                  peak:`Reach ${fmt(tier.target)} Scores`,
+                  bigLeap:`Gain ${fmt(tier.target)} Scores a week`,
+                  positiveGrowth:`Reach +${fmt(tier.target)} Growth`,
+                  growthStreak:`Get ${fmt(tier.target)} streaks`,
+                  rivalry:`Overtake ${fmt(tier.target)} players`,
+                  consistency:`Reach ${fmt(tier.target)}% consistency`,
+                  longevity:`Active for ${fmt(tier.target)} days`,
+                  persistence:`Get better in ${fmt(tier.target)} weeks`
+                }[achievement.id] || `Reach ${fmt(tier.target)} ${esc(achievement.unit)}`);
                 let tierProgress = 'Progress unavailable';
                 if (metric.available) {
                   if (achievement.id === 'rivalry' && Number(dataFor(name).rank) === 1) tierProgress = `Current rank: #1 · Eternal unlocked automatically`;
@@ -2305,7 +2325,7 @@
                 return `<div class="ach-tier-detail rounded-xl p-3 ${tier.unlocked ? 'bg-slate-800/70' : 'bg-slate-950/50'}" style="${tierBorder(tier)}"><div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-lg" style="${tierColor(tier)}">${tier.icon}</span><span class="text-sm font-bold ach-tier-name" style="${tierColor(tier)}">${tier.name}</span></div><span class="text-[10px] font-bold ach-tier-state" style="${tier.unlocked ? `color:${tier.color} !important` : 'color:#94a3b8 !important'}">${state.toUpperCase()}</span></div><p class="text-xs text-slate-300 mt-2">${requirement}</p><div class="ach-progress-track"><div class="ach-progress-fill" style="width:${percent}%"></div></div></div>`;
               }).join('');
               const cardTier = highest || tiers[0];
-              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="ach-progress-track"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-[10px] uppercase tracking-[.18em] text-indigo-300 font-bold mt-4">${esc(achievement.category)}</p><p class="text-sm text-slate-300 mt-2">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
+              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="ach-progress-track"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-sm text-slate-300 mt-4">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
             }).join('');
           }
           $('achievementGrid').addEventListener('click', event => {
