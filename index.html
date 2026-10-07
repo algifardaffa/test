@@ -520,7 +520,7 @@
 
         // LIVE GOOGLE SHEETS CSV — the published spreadsheet is the only source of player history.
         // Only Player + Testaments/Tier X columns are visualized. Date headers are preserved.
-        const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRRXY8P7l1x1W4-0ZDnFmZC7tFRVzOgJ7irWbA5TskVco6LRfcf3FB9sh19_qhX0MBVNDU8-hnSxd5V/pub?output=csv';
+        const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTA6FE45lCSDTQ2l6aE69j0DYprxFkqGkbo0V3CLvMjKuSf7qwSE39sXLYVyl3HVkM9pHhI1rmgbZ3y/pub?output=csv';
 
         async function loadCSVData() {
             const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: 'no-store' });
