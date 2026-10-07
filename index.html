@@ -1219,7 +1219,7 @@
             if (valid.length >= 6) {
                 const prev = valid.slice(-6,-3).map(x=>x.v), recent = valid.slice(-3).map(x=>x.v);
                 const a = prev.reduce((s,v)=>s+v,0)/3, b = recent.reduce((s,v)=>s+v,0)/3;
-                if (a !== 0) { const pct=(b-a)/Math.abs(a)*100; const status=Math.abs(pct)<1?'neutral':pct>0?'positive':'negative'; add('Momentum',status==='positive'?'↗':status==='negative'?'↘':'→',`Average score ${pct>0?'increased':pct<0?'decreased':'remained stable'} by ${Math.abs(pct).toFixed(1)}% compared with the previous three weeks.`,status); }
+                if (a !== 0) { const pct=(b-a)/Math.abs(a)*100; const status=Math.abs(pct)<1?'neutral':pct>0?'positive':'negative'; add('Momentum',status==='positive'?'↗':status==='negative'?'↘':'→',`Average score ${pct>0?'increased':pct<0?'decreased':'remained stable'} by ${Math.abs(pct).toFixed(1)}%`,status); }
                 else if (b===0) add('Momentum','→','Average score remained at zero across both periods.','neutral');
             }
             // Personal Record is a day-to-day/latest-snapshot comparison, not an all-time record.
@@ -2302,7 +2302,7 @@
                   : `${fmt(metric.value)} / ${fmt(nextTarget)} ${esc(achievement.unit)}`;
               const expandedDetails = achievement.tiers.map(tier => {
                 const state = tier.unlocked ? 'Achieved' : 'Locked';
-                const requirement = achievement.rank ? `TOP #${fmt(tier.target)}` : ({
+                const requirement = achievement.rank ? `Top#${fmt(tier.target)}` : ({
                   collector:`Do ${fmt(tier.target)} LME`,
                   peak:`Reach ${fmt(tier.target)} Scores`,
                   bigLeap:`Gain ${fmt(tier.target)} Scores a week`,
