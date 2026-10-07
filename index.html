@@ -245,11 +245,11 @@
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
 <button class="bg-slate-800/60 backdrop-blur-md rounded-2xl p-5 border border-slate-700/60 shadow-xl text-left hover:bg-slate-800/85 hover:border-indigo-500/40 transition-all" id="goToAchievementBtn" type="button">
 <div class="text-lg font-bold text-white mt-1">Go to achievement</div>
-<div class="text-xs text-slate-400 mt-1">Open the achievement profile for the selected nickname.</div>
+<div class="text-xs text-slate-400 mt-1">Oddery · 43/50 tiers unlocked · Overall Progress 86.0%</div>
 </button>
 <button class="bg-slate-800/60 backdrop-blur-md rounded-2xl p-5 border border-slate-700/60 shadow-xl text-left hover:bg-slate-800/85 hover:border-emerald-500/40 transition-all" id="goToFluxBtn" type="button">
 <div class="text-lg font-bold text-white mt-1">Go to flux</div>
-<div class="text-xs text-slate-400 mt-1">Open the Flux Damage Simulator.</div>
+<div class="text-xs text-slate-400 mt-1">See why your LME score goes down!</div>
 </button>
 </div>
 </section>
@@ -479,7 +479,7 @@
 <div class="overflow-x-auto">
 <table class="w-full min-w-[900px] text-sm">
 <thead><tr class="border-b border-slate-700/70 text-slate-400">
-<th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="rank" type="button">Rank ↕</button></th><th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="name" type="button">Nickname ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="score" type="button">Score ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="lastIncrease" type="button">Latest Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="growth" type="button">Growth ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigIncrease" type="button">Big Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigDrop" type="button">Big Drop ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="consistency" type="button">Consistency ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="achievement" type="button">Achievement ↕</button></th>
+<th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="rank" type="button">Rank ↕</button></th><th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="name" type="button">Nickname ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="score" type="button">Score ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="lastIncrease" type="button">Latest Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="growth" type="button">Growth ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigIncrease" type="button">Big Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigDrop" type="button">Big Drop ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="consistency" type="button">Consistency ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="achievement" type="button">Achievement ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="achievement" type="button">Achievement ↕</button></th>
 </tr></thead>
 <tbody id="leaderboardBody"></tbody>
 </table>
@@ -1227,6 +1227,17 @@
             });
         }
 
+        function updatePlayerQuickAccess() {
+            const achievementText = document.querySelector('#goToAchievementBtn .text-xs');
+            const fluxText = document.querySelector('#goToFluxBtn .text-xs');
+            if (achievementText) {
+                const summary = typeof window.getAchievementSummary === 'function' ? window.getAchievementSummary(selectedPlayer) : null;
+                if (summary && summary.name) achievementText.textContent = `${summary.name} · ${summary.unlockedTierCount}/${summary.totalTierCount} tiers unlocked · Overall Progress ${summary.overallProgress.toFixed(1)}%`;
+                else achievementText.textContent = 'Select a nickname to view achievement progress.';
+            }
+            if (fluxText) fluxText.textContent = 'See why your LME score goes down!';
+        }
+
         function updatePlayer(refreshAchievement = false) {
             // No player selected = intentionally blank Player visualization.
             // Never fall back to Tancred or any other real player.
@@ -1240,6 +1251,7 @@
                 renderPlayerInsights();
                 if (typeof renderForecast === 'function') renderForecast();
                 if (refreshAchievement && typeof window.renderAchievements === 'function') window.renderAchievements();
+                updatePlayerQuickAccess();
                 return;
             }
             renderChart('playerChart', [selectedPlayer], playerChartMode, playerChartRange, chartTitle, 'player');
@@ -1250,6 +1262,7 @@
             // Achievement is independent of visualization mode. Only refresh it
             // when the selected player/data actually changes, not on Score/Growth/Rank toggles.
             if (refreshAchievement && typeof window.renderAchievements === 'function') window.renderAchievements();
+            updatePlayerQuickAccess();
         }
 
         function getClanAggregateSeries() {
@@ -1568,6 +1581,8 @@
             const latestIncreaseBounds = latestIncreaseValues.length ? getNonOutlierBounds(latestIncreaseValues) : { min: 0, max: 1 }; // Same robust bounds as Star Comparison
             latestIncreaseBounds.max = Math.max(latestIncreaseBounds.min + 1e-9, latestIncreaseBounds.max);
             const consistencyValues = ranking.map(p => Number(p.consistency)).filter(Number.isFinite);
+            const achievementMin = 10;
+            const achievementMax = 50;
             const consistencyMin = consistencyValues.length ? Math.min(...consistencyValues) : 0;
             const consistencyMax = consistencyValues.length ? Math.max(...consistencyValues) : 1;
             const maxima = Object.fromEntries(['score','growth','bigIncrease'].map(key => [key, Math.max(1, ...ranking.map(p => Math.abs(Number(p[key]) || 0)))]));
@@ -1581,7 +1596,9 @@
                         ? (latestIncreaseBounds.max === latestIncreaseBounds.min ? 100 : Math.max(0, Math.min(100, (value - latestIncreaseBounds.min) / (latestIncreaseBounds.max - latestIncreaseBounds.min) * 100)))
                         : key === 'consistency'
                         ? (consistencyMax === consistencyMin ? 100 : Math.max(0, Math.min(100, (value - consistencyMin) / (consistencyMax - consistencyMin) * 100)))
-                        : Math.max(0, Math.min(100, Math.abs(value) / maxima[key] * 100));
+                        : key === 'achievement'
+                            ? Math.max(0, Math.min(100, (value - achievementMin) / (achievementMax - achievementMin) * 100))
+                            : Math.max(0, Math.min(100, Math.abs(value) / maxima[key] * 100));
                 return `<td class="py-3 px-3"><div class="leaderboard-metric"><span class="leaderboard-metric-value ${valueClass}">${formatter(value)}</span><span class="leaderboard-bar" aria-label="${label} bar"><span class="leaderboard-bar-fill ${fillClass}" style="width:${width}%;${fillClass ? '' : `background-color:${color};`}opacity:1;filter:none"></span></span></div></td>`;
             };
             body.innerHTML = visible.map((player, index) => {
@@ -2184,6 +2201,13 @@
             if (expandedCards.has(id)) expandedCards.delete(id); else expandedCards.add(id);
             renderAchievements();
           });
+          window.getAchievementSummary = function(name) {
+            if (!name || !getAchievementNames().includes(name)) return null;
+            const results = cfg.map(achievement => ({...achievement, tiers:getTiers(name, achievement)}));
+            const unlockedTierCount = results.reduce((sum, achievement) => sum + achievement.tiers.filter(tier => tier.unlocked).length, 0);
+            const totalTierCount = results.length * tiers.length;
+            return { name, unlockedTierCount, totalTierCount, overallProgress: totalTierCount ? unlockedTierCount / totalTierCount * 100 : 0 };
+          };
           // Expose the renderer so the async CSV loader and tab navigation can
           // refresh Achievement after playerNames/selectedPlayer are populated.
           window.renderAchievements = renderAchievements;
