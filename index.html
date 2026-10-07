@@ -339,7 +339,7 @@
 </div>
 </div>
 <div class="mt-6 p-0 bg-transparent border-0 shadow-none rounded-none" id="fiveAxisComparison">
-<h3 class="text-lg font-bold text-white mb-3">Five-Axis Player Comparison</h3>
+<h3 class="text-lg font-bold text-white mb-3">Star Comparison</h3>
 <div class="relative w-full" style="height:360px"><canvas id="comparisonRadar"></canvas></div>
 </div>
 <!-- COMPARISON INSIGHTS: derived from the same metrics used by Player Insight -->
@@ -386,7 +386,7 @@
 </div>
 <div class="flex items-center justify-between mb-4 mt-8">
 <div>
-<h3 class="text-lg font-bold text-white">Player Comparison</h3>
+<h3 class="text-lg font-bold text-white">Table Comparison</h3>
 </div>
 </div>
 <div class="comparison-table-scroll">
@@ -1436,30 +1436,64 @@
             section.classList.remove('hidden');
         }
 
+        // Shared robust bounds: identical IQR 1.5x outlier handling used by Leaderboard.
+        // Values outside the normal range remain visible, but never stretch the bar/star scale.
+        function percentile(values, q) {
+            if (!values.length) return 0;
+            const sorted = [...values].sort((a, b) => a - b);
+            const pos = (sorted.length - 1) * q;
+            const base = Math.floor(pos);
+            const rest = pos - base;
+            return sorted[base + 1] !== undefined
+                ? sorted[base] + rest * (sorted[base + 1] - sorted[base])
+                : sorted[base];
+        }
+        function getNonOutlierBounds(values) {
+            if (!values.length) return { min: 0, max: 1 };
+            const q1 = percentile(values, 0.25);
+            const q3 = percentile(values, 0.75);
+            const iqr = q3 - q1;
+            const low = q1 - 1.5 * iqr;
+            const high = q3 + 1.5 * iqr;
+            const normal = values.filter(v => v >= low && v <= high);
+            return {
+                min: normal.length ? Math.min(...normal) : Math.min(...values),
+                max: normal.length ? Math.max(...normal) : Math.max(...values)
+            };
+        }
+
         function updateComparisonRadar(players) {
             const canvas = document.getElementById('comparisonRadar');
             if (!canvas) return;
             if (comparisonRadarInstance) { comparisonRadarInstance.destroy(); comparisonRadarInstance = null; }
-            const metrics = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name))).map(getComparisonMetrics);
+            const metrics = [...new Set(players)]
+                .filter(name => name && (isClanCompare(name) || hasPlayerHistory(name)))
+                .map(getComparisonMetrics);
             const axes = [
-                { label: 'Peak', key: 'peak' },
-                { label: 'Current Value', key: 'latest' },
+                { label: 'Latest Increase', key: 'lastIncrease', robust: true },
                 { label: 'Growth', key: 'avgGrowth' },
-                { label: 'Last Increase', key: 'lastIncrease' },
+                { label: 'Score', key: 'latest' },
+                { label: 'Peak', key: 'peak' },
                 { label: 'Consistency', key: 'consistency' }
             ];
-            // Normalize against every available clan member, not just the selected players.
+            // Normalize against every available clan member, not just selected players.
+            // Latest Increase uses the exact same IQR outlier treatment as Leaderboard.
             const clanMetrics = playerNames.filter(name => hasPlayerHistory(name)).map(getComparisonMetrics);
             const ranges = Object.fromEntries(axes.map(axis => {
-                const values = clanMetrics.map(m => Number(m[axis.key] ?? 0)).filter(Number.isFinite);
-                return [axis.key, { min: Math.min(...values), max: Math.max(...values) }];
+                const values = clanMetrics.map(m => Number(m[axis.key])).filter(Number.isFinite);
+                if (!values.length) return [axis.key, { min: 0, max: 1 }];
+                return [axis.key, axis.robust
+                    ? getNonOutlierBounds(values)
+                    : { min: Math.min(...values), max: Math.max(...values) }];
             }));
             // Six radar levels (50, 60, 70, 80, 90, 100); keep plotted values above the lowest ring.
             const scaled = axes.map(axis => {
-                const { min, max } = ranges[axis.key] || { min: 0, max: 1 };
+                const bounds = ranges[axis.key] || { min: 0, max: 1 };
+                const min = Number(bounds.min);
+                const max = Math.max(min + 1e-9, Number(bounds.max));
                 return metrics.map(m => {
                     const value = Number(m[axis.key] ?? 0);
-                    const ratio = max === min ? 0.5 : (value - min) / (max - min);
+                    const ratio = (value - min) / (max - min);
                     return Math.max(55, Math.min(100, 55 + ratio * 45));
                 });
             });
@@ -1525,29 +1559,8 @@
             // Outliers remain visible as numbers, but they do not stretch the 0–100% scale.
             const changeValues = ranking.flatMap(p => [Number(p.bigDrop) || 0, Number(p.lastIncrease) || 0]);
             const latestIncreaseValues = ranking.map(p => Number(p.lastIncrease) || 0);
-            const percentile = (values, q) => {
-                if (!values.length) return 0;
-                const sorted = [...values].sort((a, b) => a - b);
-                const pos = (sorted.length - 1) * q;
-                const base = Math.floor(pos);
-                const rest = pos - base;
-                return sorted[base + 1] !== undefined ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
-            };
-            const getNonOutlierBounds = values => {
-                if (!values.length) return { min: 0, max: 1 };
-                const q1 = percentile(values, 0.25);
-                const q3 = percentile(values, 0.75);
-                const iqr = q3 - q1;
-                const low = q1 - 1.5 * iqr;
-                const high = q3 + 1.5 * iqr;
-                const normal = values.filter(v => v >= low && v <= high);
-                return {
-                    min: normal.length ? Math.min(...normal) : Math.min(...values),
-                    max: normal.length ? Math.max(...normal) : Math.max(...values)
-                };
-            };
             const bigDropBounds = getNonOutlierBounds(ranking.map(p => Number(p.bigDrop) || 0));
-            const latestIncreaseBounds = latestIncreaseValues.length ? getNonOutlierBounds(latestIncreaseValues) : { min: 0, max: 1 };
+            const latestIncreaseBounds = latestIncreaseValues.length ? getNonOutlierBounds(latestIncreaseValues) : { min: 0, max: 1 }; // Same robust bounds as Star Comparison
             latestIncreaseBounds.max = Math.max(latestIncreaseBounds.min + 1e-9, latestIncreaseBounds.max);
             const consistencyValues = ranking.map(p => Number(p.consistency)).filter(Number.isFinite);
             const consistencyMin = consistencyValues.length ? Math.min(...consistencyValues) : 0;
