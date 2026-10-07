@@ -453,121 +453,21 @@
 </div>
 </section>
 <script>
+        // Live Google Sheets data source. The published CSV is the single source of truth.
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRRXY8P7l1x1W4-0ZDnFmZC7tFRVzOgJ7irWbA5TskVco6LRfcf3FB9sh19_qhX0MBVNDU8-hnSxd5V/pub?output=csv';
         let dates = [];
         let rawPlayerData = {};
+        let rawTierData = {};
+        let playerStartDates = {};
+        let normalizedDataset = { dates: [], players: {}, tiers: {} };
         let playerNames = [];
         let selectedPlayer = '';
 
-        // LIVE GOOGLE SHEETS CSV — the published spreadsheet is the only source of player history.
-        // Only Player + Testaments/Tier X columns are visualized. Date headers are preserved.
-        const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRRXY8P7l1x1W4-0ZDnFmZC7tFRVzOgJ7irWbA5TskVco6LRfcf3FB9sh19_qhX0MBVNDU8-hnSxd5V/pub?output=csv';
+        let liveDataReady = false;
+        let liveRefreshInFlight = false;
+        let liveRefreshTimer = null;
 
-        async function loadCSVData() {
-            const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Unable to load Google Sheets CSV (${response.status})`);
-            const text = await response.text();
-            const rows = parseCSVText(text);
-            if (rows.length < 2) throw new Error('Google Sheets CSV is empty or invalid.');
-
-            // This sheet uses two header rows: row 0 = dates, row 1 = category/type.
-            const dateRow = rows[0] || [];
-            const categoryRow = rows[1] || [];
-            const playerCol = categoryRow.findIndex(v => String(v || '').trim().toLowerCase() === 'player');
-            if (playerCol < 0) throw new Error('Google Sheets CSV: Player column was not found.');
-
-            const selectedColumns = [];
-            const totalColumns = Math.max(dateRow.length, categoryRow.length);
-
-            // A score snapshot is identified by its DATE + SCORE CATEGORY, but the
-            // sheet may leave the category cell blank when a new weekly column is
-            // appended under the same Tier. In that case inherit the last valid
-            // Testaments/Tier category. This keeps the parser dynamic: adding a new
-            // dated score column to Google Sheets automatically extends the timeline.
-            let lastScoreCategory = '';
-            for (let col = 0; col < totalColumns; col++) {
-                const category = String(categoryRow[col] || '').trim();
-                let date = String(dateRow[col] || '').trim();
-                if (!date) continue;
-
-                // Fix the known source typo: 28/7/0206 -> 28/7/2026.
-                date = date.replace(/(\d{1,2}\/\d{1,2}\/)0206$/, '$12026');
-
-                const isTestaments = /^Testaments$/i.test(category);
-                const isTier = /^Tier\s+\d+$/i.test(category);
-
-                if (isTestaments || isTier) {
-                    selectedColumns.push({ col, date, category });
-                    lastScoreCategory = category;
-                    continue;
-                }
-
-                // Blank category + valid date = continuation of the previous score
-                // category. This is especially important for newly added weeks.
-                if (!category && lastScoreCategory && (/^Testaments$/i.test(lastScoreCategory) || /^Tier\s+\d+$/i.test(lastScoreCategory))) {
-                    selectedColumns.push({ col, date, category: lastScoreCategory });
-                }
-            }
-
-            // Do NOT hardcode the number of snapshots. The Google Sheet is allowed to
-            // grow with new weekly columns, and every new valid score column becomes
-            // part of the timeline automatically.
-            if (!selectedColumns.length) throw new Error('Google Sheets CSV: no Testaments/Tier X columns were found.');
-
-            dates = selectedColumns.map(x => x.date);
-            rawPlayerData = {};
-
-            for (let r = 2; r < rows.length; r++) {
-                const name = String(rows[r]?.[playerCol] ?? '').trim();
-                if (!name) continue; // never create the old empty-name/dummy player
-
-                const values = [];
-                let previous = null;
-                let hasEntered = false;
-                for (const item of selectedColumns) {
-                    const raw = String(rows[r]?.[item.col] ?? '').trim().replace(/,/g, '');
-                    const numeric = raw === '' ? NaN : Number(raw);
-
-                    if (Number.isFinite(numeric) && numeric !== 0) {
-                        // The first real score marks the player's actual join/entry date.
-                        hasEntered = true;
-                        previous = numeric;
-                        values.push(numeric);
-                    } else if (hasEntered) {
-                        // Only after the player has entered: 0/blank inherits the previous score.
-                        values.push(previous);
-                    } else {
-                        // Before the first real score: keep it null so the player does not
-                        // appear to have participated in earlier snapshots.
-                        values.push(null);
-                    }
-                }
-
-                // Keep players only when at least one real score exists.
-                if (values.some(value => Number.isFinite(value))) rawPlayerData[name] = values;
-            }
-            playerNames = Object.keys(rawPlayerData).filter(name => name.trim() !== '');
-            selectedPlayer = playerNames[0] || '';
-        }
-
-        function parseCSVText(text) {
-            const rows = [];
-            let row = [], cell = '', quoted = false;
-            for (let i = 0; i < text.length; i++) {
-                const ch = text[i];
-                if (quoted) {
-                    if (ch === '"') {
-                        if (text[i + 1] === '"') { cell += '"'; i++; }
-                        else quoted = false;
-                    } else cell += ch;
-                } else if (ch === '"') quoted = true;
-                else if (ch === ',') { row.push(cell); cell = ''; }
-                else if (ch === '\n') { row.push(cell.replace(/\r$/, '')); rows.push(row); row = []; cell = ''; }
-                else cell += ch;
-            }
-            row.push(cell.replace(/\r$/, ''));
-            if (row.length > 1 || row[0] !== '') rows.push(row);
-            return rows;
-        }
+        // No embedded fallback dataset: Google Sheets is the only data source.
 
         let playerChartMode = 'damage';
         let playerChartRange = 'all';
@@ -635,48 +535,164 @@
             }
         }
 
-        // SINGLE PLAYER HISTORY SOURCE OF TRUTH
-        // Every feature must use this series instead of treating the global 92 snapshots
-        // as if every player existed from snapshot #1.
+        function parseCsvText(text) {
+            const rows = [];
+            let row = [], cell = '', quoted = false;
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                if (quoted) {
+                    if (ch === '"') {
+                        if (text[i + 1] === '"') { cell += '"'; i++; } else quoted = false;
+                    } else cell += ch;
+                } else {
+                    if (ch === '"') quoted = true;
+                    else if (ch === ',') { row.push(cell); cell = ''; }
+                    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+                    else if (ch !== '\r') cell += ch;
+                }
+            }
+            if (cell.length || row.length) { row.push(cell); rows.push(row); }
+            return rows;
+        }
+        const cleanCell = value => String(value ?? '').trim();
+        function parseNumericCell(value) {
+            const text = cleanCell(value).replace(/,/g, '');
+            if (!text) return null;
+            const number = Number(text);
+            return Number.isFinite(number) ? number : null;
+        }
+        function normalizeDateText(value, contextYears = []) {
+            const m = cleanCell(value).match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{1,4})$/);
+            if (!m) return null;
+            let day = Number(m[1]), month = Number(m[2]), year = Number(m[3]);
+            if (m[3] === '0206') {
+                const candidate = 2026;
+                if (contextYears.includes(candidate)) year = candidate;
+            } else if (m[3].length === 4 && m[3].startsWith('0')) {
+                const candidate = Number(`2${m[3].slice(1)}`);
+                if (candidate >= 2000 && candidate <= 2100 && contextYears.includes(candidate)) year = candidate;
+            } else if (year < 1000) {
+                const candidate = 2000 + year;
+                if (candidate >= 2000 && candidate <= 2100 && contextYears.includes(candidate)) year = candidate;
+            }
+            const d = new Date(year, month - 1, day);
+            if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+            return `${day}/${month}/${year}`;
+        }
+        const dateKey = value => {
+            const m = String(value || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            return m ? Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : NaN;
+        };
+        function normalizeSheetRows(rows) {
+            if (!Array.isArray(rows) || rows.length < 3) throw new Error('The Google Sheet CSV does not contain enough rows.');
+            const width = Math.max(...rows.map(row => row.length));
+            const header = Array.from({length: width}, (_, i) => cleanCell(rows[0]?.[i]));
+            const category = Array.from({length: width}, (_, i) => cleanCell(rows[1]?.[i]));
+            const contextYears = header.slice(1).map(v => { const m = v.match(/\/(\d{1,4})$/); if (!m) return null; const raw = m[1]; if (raw.length === 4 && raw.startsWith('0')) return Number(`2${raw.slice(1)}`); const y = Number(raw); return y < 1000 ? 2000 + y : y; }).filter(Number.isFinite);
+            const columns = [];
+            for (let col = 1; col < width; col++) {
+                const type = category[col];
+                const isTestaments = type.toLowerCase() === 'testaments';
+                const tierMatch = type.match(/^tier\s*(\d+)$/i);
+                if (!isTestaments && !tierMatch) continue;
+                const date = normalizeDateText(header[col], contextYears);
+                if (!date) continue;
+                columns.push({col, date, type: isTestaments ? 'Testaments' : `Tier ${tierMatch[1]}`});
+            }
+            const testDates = [...new Set(columns.filter(c => c.type === 'Testaments').map(c => c.date))].sort((a,b) => dateKey(a) - dateKey(b));
+            if (!testDates.length) throw new Error('No Testaments columns were found in the Google Sheet category row.');
+            const testCols = columns.filter(c => c.type === 'Testaments');
+            const tierCols = columns.filter(c => c.type !== 'Testaments');
+            const players = {}, tiers = {}, starts = {};
+            rows.slice(2).forEach((row, rowIndex) => {
+                const name = cleanCell(row?.[0]);
+                const values = testDates.map(date => { const col = testCols.find(c => c.date === date); return col ? parseNumericCell(row[col.col]) : null; });
+                let previous = null;
+                for (let i = 0; i < values.length; i++) {
+                    const value = values[i];
+                    if (value !== null && value > 0) previous = value;
+                    else if (previous !== null) values[i] = previous;
+                    else values[i] = null;
+                }
+                if (!name && !values.some(Number.isFinite)) return;
+                if (!values.some(Number.isFinite)) return;
+                players[name] = values;
+                const firstValid = values.findIndex(Number.isFinite);
+                starts[name] = firstValid >= 0 ? testDates[firstValid] : null;
+                const playerTiers = {};
+                tierCols.forEach(col => {
+                    if (!playerTiers[col.type]) playerTiers[col.type] = {};
+                    const value = parseNumericCell(row[col.col]);
+                    if (value !== null) playerTiers[col.type][col.date] = value;
+                });
+                tiers[name] = playerTiers;
+            });
+            return {dates:testDates, players, tiers, starts};
+        }
+        function setLiveDataStatus(message, kind='loading') {
+            const el = document.getElementById('liveDataStatus');
+            if (!el) return;
+            el.textContent = message;
+            el.className = 'text-xs rounded-lg border px-3 py-2 mb-5 ' + (kind === 'error' ? 'text-rose-300 border-rose-500/30 bg-rose-500/5' : kind === 'success' ? 'text-emerald-300 border-emerald-500/20 bg-emerald-500/5' : 'text-slate-400 border-slate-700/60 bg-slate-900/40');
+            el.classList.remove('hidden');
+        }
+        async function refreshLiveData(initialLoad=false) {
+            if (liveRefreshInFlight) return false;
+            liveRefreshInFlight = true;
+            const previousPlayer = selectedPlayer;
+            if (initialLoad && !liveDataReady) setLiveDataStatus('Loading live Google Sheets data…', 'loading');
+            try {
+                const response = await fetch(`${CSV_URL}&v=${Date.now()}`, {cache:'no-store'});
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const parsed = normalizeSheetRows(parseCsvText(await response.text()));
+                if (!parsed.dates.length || !Object.keys(parsed.players).length) throw new Error('The Google Sheet contains no usable Testaments player data.');
+                dates = parsed.dates; rawPlayerData = parsed.players; rawTierData = parsed.tiers; playerStartDates = parsed.starts; normalizedDataset = parsed;
+                playerNames = Object.keys(rawPlayerData);
+                const preserved = previousPlayer && rawPlayerData[previousPlayer]?.some(Number.isFinite) ? previousPlayer : null;
+                selectedPlayer = preserved || '';
+                liveDataReady = true;
+                populateDatalist();
+                if (playerSearch) playerSearch.value = selectedPlayer;
+                updatePlayer(); updateCompare(); updateLeaderboard(); updateClan(); renderClanScoreDistribution(); renderClanForecast(); renderForecast();
+                if (typeof renderAchievements === 'function') renderAchievements();
+                if (typeof runFluxSimulation === 'function') runFluxSimulation();
+                setLiveDataStatus(`Live data connected · ${dates.length} dates · ${playerNames.filter(name => String(name).trim() !== '').length} players · refresh on page reload only.`, 'success');
+                return true;
+            } catch (error) {
+                console.error('Live CSV refresh failed:', error);
+                setLiveDataStatus(liveDataReady ? `Live data refresh failed: ${error.message}. Showing the last valid dataset.` : `Unable to load the Google Sheet: ${error.message}.`, 'error');
+                return false;
+            } finally {
+                liveRefreshInFlight = false;
+            }
+        }
+
         function getPlayerSeries(playerName) {
-            const data = rawPlayerData[playerName];
-            if (!Array.isArray(data)) {
-                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0 };
+            const source = Array.isArray(rawPlayerData[playerName]) ? rawPlayerData[playerName] : [];
+            if (!source.length || !dates.length) return { data: [], startIndex: dates.length, dates: [] };
+
+            const numericIndexes = source
+                .map((value, index) => Number.isFinite(Number(value)) ? index : -1)
+                .filter(index => index >= 0);
+            if (!numericIndexes.length) return { data: [], startIndex: dates.length, dates: [] };
+
+            // The LAST stored value is always the player's latest snapshot.
+            // When a player series is shorter than the global date history, align it
+            // against the END of the timeline, not against dates[0].
+            // Example with global dates ending 29/9/2026:
+            // [1,2,3,4,5] => 1 is the oldest of these 5 snapshots,
+            // 4 is 22/9/2026 and 5 is 29/9/2026.
+            if (source.length < dates.length) {
+                const firstValid = numericIndexes[0];
+                const lastValid = numericIndexes[numericIndexes.length - 1];
+                const data = source.slice(firstValid, lastValid + 1);
+                const startIndex = Math.max(0, dates.length - data.length);
+                return { data, startIndex, dates: dates.slice(startIndex, startIndex + data.length) };
             }
 
-            // Before first real score: null = player has not joined yet.
-            // After first real score: loadCSVData has already forward-filled 0/blank values.
-            const startIndex = data.findIndex(value => value !== null && Number.isFinite(Number(value)));
-            if (startIndex < 0) {
-                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0 };
-            }
-
-            // The current/last snapshot is ALWAYS the latest global snapshot.
-            // Keep the global index explicit so Player metrics and charts end at
-            // the real last CSV date (currently 6/10/2026).
-            const latestIdx = dates.length - 1;
-            const playerData = data.slice(startIndex, latestIdx + 1).map(Number);
-            const playerDates = dates.slice(startIndex, latestIdx + 1);
-            return {
-                data: playerData,
-                dates: playerDates,
-                startIndex,
-                endIndex: latestIdx,
-                totalLme: playerData.filter(Number.isFinite).length
-            };
-        }
-
-        function hasPlayerHistory(playerName) {
-            return !!playerName && playerNames.includes(playerName) && getPlayerSeries(playerName).totalLme > 0;
-        }
-
-        function getPlayerLatestValue(playerName) {
-            const series = getPlayerSeries(playerName);
-            const latestIdx = dates.length - 1;
-            const localIndex = latestIdx - series.startIndex;
-            return series.totalLme && localIndex >= 0 && localIndex < series.data.length
-                ? Number(series.data[localIndex])
-                : NaN;
+            // Full-length normalized series already has one slot per global date.
+            const firstValid = numericIndexes[0];
+            return { data: source.slice(firstValid), startIndex: firstValid, dates: dates.slice(firstValid) };
         }
 
         function parseDateDMY(dateString) {
@@ -696,7 +712,7 @@
 
         function getClanAverageSeries() {
             const values = dates.map((_, index) => {
-                const scores = playerNames.filter(name => hasPlayerHistory(name))
+                const scores = playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length)
                     .map(name => {
                         const series = getPlayerSeries(name);
                         const j = index - series.startIndex;
@@ -718,7 +734,7 @@
 
         function getComparisonMetrics(playerName) {
             if (isClanCompare(playerName)) {
-                const members = playerNames.filter(name => hasPlayerHistory(name));
+                const members = playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length);
                 const memberMetrics = members.map(name => getComparisonMetrics(name));
                 const avg = key => {
                     const vals = memberMetrics.map(m => Number(m[key])).filter(Number.isFinite);
@@ -743,13 +759,13 @@
                     totalLme: avg('totalLme')
                 };
             }
+            const data = rawPlayerData[playerName] || [];
             const series = getPlayerSeries(playerName);
-            const observedData = series.data.filter(value => Number.isFinite(Number(value))).map(Number);
-            if (!observedData.length) return { name: playerName, latest: null, peak: null, avgGrowth: null, bigIncrease: null, bigDrop: null, lastIncrease: null, consistency: 0, rank: null, joinDuration: '-', totalLme: 0 };
+            if (!data.length) return { name: playerName, latest: null, peak: null, avgGrowth: null, bigIncrease: null, bigDrop: null, lastIncrease: null, consistency: 0, rank: null, joinDuration: '-', totalLme: 0 };
 
-            // Growth and consistency are calculated from the latest 52 REAL snapshots.
-            // Pre-entry nulls are never counted.
-            const analysisData = observedData.slice(-52);
+            // Growth and consistency are calculated from the latest 52 snapshots (~1 year).
+            // If fewer than 52 snapshots exist, use all available observations.
+            const analysisData = data.slice(-52);
             const changes = [];
             for (let i = 1; i < analysisData.length; i++) changes.push(analysisData[i] - analysisData[i - 1]);
             const positiveChanges = changes.filter(x => x > 0);
@@ -784,8 +800,8 @@
             }
             return {
                 name: playerName,
-                latest: observedData[observedData.length - 1],
-                peak: Math.max(...observedData),
+                latest: data[data.length - 1],
+                peak: Math.max(...data),
                 avgGrowth: changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : null,
                 bigIncrease: positiveChanges.length ? Math.max(...positiveChanges) : 0,
                 bigDrop: changes.length ? Math.min(...changes) : 0,
@@ -793,9 +809,7 @@
                 consistency,
                 joinDuration: series.dates.length ? formatDuration(series.dates[0], series.dates[series.dates.length - 1]) : '-',
                 rank: Number(getClanRanks()[playerName]) || null,
-                // LME = actual recorded snapshots from first real score onward.
-                // Pre-entry nulls are never counted.
-                totalLme: series.data.filter(value => Number.isFinite(Number(value))).length
+                totalLme: data.length
             };
         }
 
@@ -808,7 +822,7 @@
 
         function getClanRanksAtIndex(index) {
             const sorted = playerNames
-                .filter(name => hasPlayerHistory(name))
+                .filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name] && rawPlayerData[name].length)
                 .map(name => {
                     const series = getPlayerSeries(name);
                     const j = index - series.startIndex;
@@ -829,9 +843,8 @@
 
         function getClanRanks() {
             const sorted = playerNames
-                .filter(name => hasPlayerHistory(name))
-                .map(name => ({ name, latest: getPlayerLatestValue(name) }))
-                .filter(item => Number.isFinite(item.latest))
+                .filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name] && rawPlayerData[name].length)
+                .map(name => ({ name, latest: rawPlayerData[name][rawPlayerData[name].length - 1] }))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
             let rank = 0;
@@ -905,10 +918,8 @@
             if (mode === 'damage') return { dates: dateSlice, data: dataSlice };
 
             const growthData = dataSlice.map((value, i) => {
-                const seriesIndex = start + i;
-                if (seriesIndex === 0) return 0;
-                const previous = Number(series.data[seriesIndex - 1]);
-                return Number.isFinite(previous) && Number.isFinite(Number(value)) ? Number(value) - previous : null;
+                const globalIndex = start + i;
+                return globalIndex === 0 ? 0 : value - series.data[globalIndex - 1];
             });
             return { dates: dateSlice, data: growthData };
         }
@@ -916,22 +927,11 @@
         function buildChartConfig(players, mode, range, chartRefName) {
             const displaySeries = players.map(name => getChartSeries(name, mode, range));
             if (!displaySeries.length) return null;
-            // Player view must use the selected player's own timeline.
-            // Do NOT lock the X-axis to the global clan timeline before that
-            // player's first real score. Compare view still uses a shared
-            // timeline so multiple players can be compared correctly.
-            let chartDates;
-            if (chartRefName === 'player' && displaySeries.length === 1) {
-                chartDates = displaySeries[0].dates.slice();
-            } else {
-                const firstIndexes = displaySeries.map(series => {
-                    const first = series.dates[0];
-                    const index = first ? dates.indexOf(first) : -1;
-                    return index >= 0 ? index : dates.length - 1;
-                });
-                const earliestDateIndex = Math.min(...firstIndexes);
-                chartDates = dates.slice(Math.max(0, earliestDateIndex));
-            }
+            const earliestDateIndex = Math.min(...displaySeries.map(series => {
+                const first = series.dates[0];
+                return first ? dates.indexOf(first) : dates.length - 1;
+            }));
+            const chartDates = dates.slice(Math.max(0, earliestDateIndex));
             const styles = [
                 { borderColor: '#818cf8', backgroundColor: 'rgba(129, 140, 248, 0.15)' },
                 { borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.10)' },
@@ -955,7 +955,7 @@
             });
             const allValues = displaySeries.flatMap(s => s.data).filter(v => typeof v === 'number' && !Number.isNaN(v));
             const rankFillTarget = mode === 'rank' && chartRefName === 'player'
-                ? Math.max(1, playerNames.filter(name => hasPlayerHistory(name)).length)
+                ? Math.max(1, playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length).length)
                 : null;
             if (rankFillTarget !== null) {
                 datasets.forEach(ds => { ds.fill = { target: { value: rankFillTarget } }; });
@@ -986,7 +986,7 @@
                     },
                     scales: {
                         x: { grid: { color: 'rgba(51, 65, 85, 0.4)', drawBorder: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 15 } },
-                        y: { grid: { color: 'rgba(51, 65, 85, 0.4)', drawBorder: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, stepSize: mode === 'rank' ? 1 : undefined, precision: mode === 'rank' ? 0 : undefined }, beginAtZero: mode === 'growth', reverse: mode === 'rank', min: mode === 'rank' && chartRefName === 'player' ? 1 : undefined, max: mode === 'rank' && chartRefName === 'player' ? Math.max(1, playerNames.filter(name => hasPlayerHistory(name)).length) : undefined, suggestedMax: mode === 'rank' ? undefined : config.maxValue, suggestedMin: mode === 'growth' ? config.minValue : undefined }
+                        y: { grid: { color: 'rgba(51, 65, 85, 0.4)', drawBorder: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, stepSize: mode === 'rank' ? 1 : undefined, precision: mode === 'rank' ? 0 : undefined }, beginAtZero: mode === 'growth', reverse: mode === 'rank', min: mode === 'rank' && chartRefName === 'player' ? 1 : undefined, max: mode === 'rank' && chartRefName === 'player' ? Math.max(1, playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length).length) : undefined, suggestedMax: mode === 'rank' ? undefined : config.maxValue, suggestedMin: mode === 'growth' ? config.minValue : undefined }
                     }
                 }
             });
@@ -1016,7 +1016,27 @@
         }
 
         function updatePlayerAttributes() {
-            if (!hasPlayerHistory(selectedPlayer)) selectedPlayer = playerNames.find(name => hasPlayerHistory(name)) || playerNames[0] || '';
+            if (!selectedPlayer || !rawPlayerData[selectedPlayer]) {
+                const placeholders = [
+                    ['playerAttrRank', '#', '-'],
+                    ['playerAttrPeak', '⌒', '-'],
+                    ['playerAttrAvgGrowth', '⤴', '-'],
+                    ['playerAttrBigIncrease', '↑', '-'],
+                    ['playerAttrBigDrop', '↓', '-'],
+                    ['playerAttrLastIncrease', '↻', '-'],
+                    ['playerAttrUnwavering', '◉', '-'],
+                    ['playerAttrJoinDuration', '◷', '-'],
+                    ['playerAttrTotalLme', '●', '-']
+                ];
+                const labels = ['Rank', 'Peak', 'Average Growth', 'Big Increase', 'Big Drop', 'Last Increase', 'concistensy', 'Join Duration', 'Total LME'];
+                const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
+                placeholders.forEach(([id, icon, value], i) => {
+                    const iconColor = iconColors[i % iconColors.length];
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = `<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
+                });
+                return;
+            }
             const m = getComparisonMetrics(selectedPlayer);
             const ranks = getClanRanks();
             const series = getPlayerSeries(selectedPlayer);
@@ -1043,7 +1063,7 @@
         function renderPlayerInsights() {
             const section = document.getElementById('playerInsights');
             const list = document.getElementById('playerInsightsList');
-            if (!hasPlayerHistory(selectedPlayer)) {
+            if (!selectedPlayer || !rawPlayerData[selectedPlayer]) {
                 const placeholders = [
                     ['Momentum','↗'],
                     ['Personal Record','🏆'],
@@ -1079,16 +1099,21 @@
                     const rows = playerNames.map(n => { const ps=getPlayerSeries(n); const j=dateIdx-ps.startIndex; return {name:n, score:j>=0&&j<ps.data.length?Number(ps.data[j]):NaN}; }).filter(x=>Number.isFinite(x.score)).sort((a,b)=>b.score-a.score);
                     let rank=0, prev=null; const rankMap={}; rows.forEach((row,i)=>{ if(i===0 || row.score!==prev) rank=i+1; rankMap[row.name]=rank; prev=row.score; }); return rankMap;
                 };
-                const latestRank=getRankAt(latestIdx)[selectedPlayer], previousRank=getRankAt(latestIdx-1)[selectedPlayer];
-                if (Number.isFinite(latestRank) && Number.isFinite(previousRank)) {
-                    const status=latestRank<previousRank?'positive':latestRank>previousRank?'negative':'neutral';
-                    const description=status==='positive'?`Rank improved from #${previousRank} to #${latestRank} compared with the previous snapshot.`:status==='negative'?`Rank fell from #${previousRank} to #${latestRank} compared with the previous snapshot.`:`Rank stayed at #${latestRank} compared with the previous snapshot.`;
-                    add('Clan Rank','◉',description,status);
+                const latestRank=getRankAt(latestIdx)[selectedPlayer];
+                const previousRank=latestIdx > 0 ? getRankAt(latestIdx-1)[selectedPlayer] : NaN;
+                if (Number.isFinite(latestRank)) {
+                    if (Number.isFinite(previousRank)) {
+                        const status=latestRank<previousRank?'positive':latestRank>previousRank?'negative':'neutral';
+                        const description=status==='positive'?`Rank improved from #${previousRank} to #${latestRank} compared with the previous snapshot.`:status==='negative'?`Rank fell from #${previousRank} to #${latestRank} compared with the previous snapshot.`:`Rank stayed at #${latestRank} compared with the previous snapshot.`;
+                        add('Clan Rank','◉',description,status);
+                    } else {
+                        add('Clan Rank','◉',`Current clan rank is #${latestRank}.`,'neutral');
+                    }
                 }
             }
             if (valid.length) {
                 const latestIndex=series.startIndex+series.data.length-1;
-                const clanScores=playerNames.filter(n=>hasPlayerHistory(n)).map(n=>{const ps=getPlayerSeries(n); const i=latestIndex-ps.startIndex; return i>=0&&i<ps.data.length?Number(ps.data[i]):NaN;}).filter(Number.isFinite);
+                const clanScores=playerNames.filter(n=>rawPlayerData[n] && rawPlayerData[n].length).map(n=>{const ps=getPlayerSeries(n); const i=latestIndex-ps.startIndex; return i>=0&&i<ps.data.length?Number(ps.data[i]):NaN;}).filter(Number.isFinite);
                 const playerLatest=valid[valid.length-1].v;
                 if (clanScores.length && clanScores.some(v=>v!==playerLatest || true)) { const avg=clanScores.reduce((a,b)=>a+b,0)/clanScores.length; if(avg!==0){const pct=(playerLatest-avg)/Math.abs(avg)*100; const neutral=Math.abs(pct)<=INSIGHT_CONFIG.clanNeutralPct; add('Clan Gap',neutral?'↔':pct>0?'↑':'↓',neutral?`Latest score is within ${INSIGHT_CONFIG.clanNeutralPct}% of the clan average.`:`${pct>0?'Above':'Below'} Clan Average: score is ${Math.abs(pct).toFixed(1)}% ${pct>0?'above':'below'} the clan average.`,neutral?'neutral':pct>0?'positive':'negative');} }
             }
@@ -1098,12 +1123,14 @@
         }
 
         function updatePlayer() {
+            // Keep the initial/cleared state as an explicit empty-name series.
+            // This intentionally renders the player chart with dataset label "".
             renderChart('playerChart', [selectedPlayer], playerChartMode, playerChartRange, chartTitle, 'player');
             updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
             updatePlayerAttributes();
             renderPlayerInsights();
             if (typeof renderForecast === 'function') renderForecast();
-            if (typeof window.renderAchievements === 'function') window.renderAchievements();
+            if (typeof renderAchievements === 'function') renderAchievements();
         }
 
         function getClanAggregateSeries() {
@@ -1173,7 +1200,7 @@
             const header = document.getElementById('comparisonHeader');
             const body = document.getElementById('comparisonBody');
             if (!header || !body) return;
-            const uniquePlayers = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name)));
+            const uniquePlayers = [...new Set(players)].filter(name => name && (isClanCompare(name) || rawPlayerData[name]));
             if (!uniquePlayers.length) {
                 header.innerHTML = '<th class="text-left py-3 px-3 text-slate-400">Attribute</th><th class="text-right py-3 px-3 text-slate-500">Player 1</th><th class="text-right py-3 px-3 text-slate-500">Player 2</th><th class="text-right py-3 px-3 text-slate-500">Player 3</th>';
                 const emptyAttrs = ['Rank','Peak','Average Growth','Big Increase','Big Drop','Last Increase','Consistency','Join Duration','Total LME'];
@@ -1209,7 +1236,7 @@
             const section = document.getElementById('comparisonInsights');
             const list = document.getElementById('comparisonInsightsList');
             if (!section || !list) return;
-            const names = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name)));
+            const names = [...new Set(players)].filter(name => name && (isClanCompare(name) || rawPlayerData[name]));
             if (names.length < 2) {
                 const placeholders = [
                     ['Momentum','↗'],
@@ -1257,7 +1284,7 @@
         function renderClanInsights() {
             const section=document.getElementById('clanInsights'), list=document.getElementById('clanInsightsList');
             if(!section||!list) return;
-            const names=playerNames.filter(name=>hasPlayerHistory(name));
+            const names=playerNames.filter(name=>name&&rawPlayerData[name]?.length);
             if(!names.length){section.classList.add('hidden');list.innerHTML='';return;}
             const metrics=names.map(getComparisonMetrics);
             const avgGrowth=metrics.reduce((s,m)=>s+(Number(m.avgGrowth)||0),0)/metrics.length;
@@ -1296,7 +1323,7 @@
             const canvas = document.getElementById('comparisonRadar');
             if (!canvas) return;
             if (comparisonRadarInstance) { comparisonRadarInstance.destroy(); comparisonRadarInstance = null; }
-            const metrics = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name))).map(getComparisonMetrics);
+            const metrics = [...new Set(players)].filter(name => name && (isClanCompare(name) || rawPlayerData[name])).map(getComparisonMetrics);
             const axes = [
                 { label: 'Peak', key: 'peak' },
                 { label: 'Current Value', key: 'latest' },
@@ -1305,7 +1332,7 @@
                 { label: 'Consistency', key: 'consistency' }
             ];
             // Normalize against every available clan member, not just the selected players.
-            const clanMetrics = playerNames.filter(name => hasPlayerHistory(name)).map(getComparisonMetrics);
+            const clanMetrics = playerNames.filter(name => name && rawPlayerData[name]?.length).map(getComparisonMetrics);
             const ranges = Object.fromEntries(axes.map(axis => {
                 const values = clanMetrics.map(m => Number(m[axis.key] ?? 0)).filter(Number.isFinite);
                 return [axis.key, { min: Math.min(...values), max: Math.max(...values) }];
@@ -1363,7 +1390,7 @@
             if (!body) return;
             const currentRankMap = getClanRanks();
             const previousRankMap = getClanRanksAtIndex(dates.length - 2);
-            const ranking = playerNames.filter(name => hasPlayerHistory(name)).map(name => {
+            const ranking = playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length).map(name => {
                 const m = getComparisonMetrics(name);
                 const currentRank = Number(currentRankMap[name]);
                 const previousRank = Number(previousRankMap[name]);
@@ -1447,45 +1474,115 @@
         });
 
         function switchTab(tabName) {
-            const sections = { player: document.getElementById('playerSection'), clan: document.getElementById('clanSection'), compare: document.getElementById('compareSection'), leaderboard: document.getElementById('leaderboardSection'), flux: document.getElementById('fluxSection'), achievements: document.getElementById('achievementsSection') };
-            const buttons = { player: document.getElementById('tabPlayer'), clan: document.getElementById('tabClan'), compare: document.getElementById('tabCompare'), leaderboard: document.getElementById('tabLeaderboard') };
-            // Achievement and Flux are standalone pages: they are NOT navbar menus and never remain visible with Player.
+            const sections = {
+                player: document.getElementById('playerSection'),
+                compare: document.getElementById('compareSection'),
+                clan: document.getElementById('clanSection'),
+                leaderboard: document.getElementById('leaderboardSection'),
+                forecast: document.getElementById('forecastSection'),
+                flux: document.getElementById('fluxSection'),
+                achievements: document.getElementById('achievementsSection')
+            };
+            const buttons = {
+                player: document.getElementById('tabPlayer'),
+                compare: document.getElementById('tabCompare'),
+                clan: document.getElementById('tabClan'),
+                leaderboard: document.getElementById('tabLeaderboard'),
+                forecast: document.getElementById('tabForecast'),
+                flux: document.getElementById('tabFlux'),
+                achievements: document.getElementById('tabAchievements')
+            };
+
             Object.entries(sections).forEach(([key, section]) => {
                 if (!section) return;
                 const active = key === tabName;
                 section.classList.toggle('active', active);
                 section.hidden = !active;
-                section.style.display = active ? 'block' : 'none';
+                section.style.display = active ? '' : 'none';
                 section.setAttribute('aria-hidden', active ? 'false' : 'true');
             });
             Object.entries(buttons).forEach(([key, button]) => {
                 if (button) button.classList.toggle('active', key === tabName);
             });
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            window.scrollTo({ top: 0, behavior: 'auto' });
             setTimeout(() => {
                 if (tabName === 'player' && playerChartInstance) playerChartInstance.resize();
-                if (tabName === 'clan') { if (clanChartInstance) clanChartInstance.resize(); if (clanScoreDistributionInstance) clanScoreDistributionInstance.resize(); }
+                if (tabName === 'clan') {
+                    if (clanChartInstance) clanChartInstance.resize();
+                    if (clanScoreDistributionInstance) clanScoreDistributionInstance.resize();
+                }
                 if (tabName === 'compare' && compareChartInstance) compareChartInstance.resize();
+                if (tabName === 'forecast') {
+                    if (typeof forecastChartInstance !== 'undefined' && forecastChartInstance) forecastChartInstance.resize();
+                    if (typeof clanForecastChartInstance !== 'undefined' && clanForecastChartInstance) clanForecastChartInstance.resize();
+                }
             }, 0);
-            if (tabName === 'leaderboard') updateLeaderboard();
+            if (tabName === 'clan' && typeof updateClan === 'function') updateClan();
+            if (tabName === 'leaderboard' && typeof updateLeaderboard === 'function') updateLeaderboard();
             if (tabName === 'achievements' && typeof renderAchievements === 'function') renderAchievements();
         }
 
-        document.getElementById('tabPlayer').addEventListener('click', () => switchTab('player'));
-        document.getElementById('tabClan').addEventListener('click', () => { updateClan(); switchTab('clan'); });
-        document.getElementById('tabCompare').addEventListener('click', () => switchTab('compare'));
-        document.getElementById('tabLeaderboard').addEventListener('click', () => switchTab('leaderboard'));
+        // Keep navigation isolated from optional/standalone pages so one missing section can never kill all nav.
+        const navBindings = {
+            tabPlayer: 'player',
+            tabCompare: 'compare',
+            tabClan: 'clan',
+            tabLeaderboard: 'leaderboard',
+            tabForecast: 'forecast',
+            tabFlux: 'flux',
+            tabAchievements: 'achievements'
+        };
+        Object.entries(navBindings).forEach(([buttonId, tabName]) => {
+            const button = document.getElementById(buttonId);
+            if (button) button.addEventListener('click', event => {
+                event.preventDefault();
+                switchTab(tabName);
+            });
+        });
         switchTab('player');
         document.getElementById('goToAchievementBtn')?.addEventListener('click', () => switchTab('achievements'));
         document.getElementById('goToFluxBtn')?.addEventListener('click', () => switchTab('flux'));
         document.querySelectorAll('[data-back-player]').forEach(btn => btn.addEventListener('click', () => switchTab('player')));
 
-        damageModeBtn.addEventListener('click', () => { playerChartMode = 'damage'; updatePlayer(); });
-        growthModeBtn.addEventListener('click', () => { playerChartMode = 'growth'; updatePlayer(); });
-        rankModeBtn.addEventListener('click', () => { playerChartMode = 'rank'; updatePlayer(); });
-        range3mBtn.addEventListener('click', () => { playerChartRange = '3m'; updatePlayer(); });
-        range1yBtn.addEventListener('click', () => { playerChartRange = '1y'; updatePlayer(); });
-        rangeAllBtn.addEventListener('click', () => { playerChartRange = 'all'; updatePlayer(); });
+        // Player chart controls are intentionally lightweight: changing a toggle/range
+        // only redraws the chart and button state. Expensive Player Insights,
+        // attributes, Forecast and Achievement calculations are NOT repeated.
+        function updatePlayerVisualizationOnly() {
+            renderChart('playerChart', [selectedPlayer], playerChartMode, playerChartRange, chartTitle, 'player');
+            updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
+        }
+
+        damageModeBtn.addEventListener('click', () => {
+            if (playerChartMode === 'damage') return;
+            playerChartMode = 'damage';
+            updatePlayerVisualizationOnly();
+        });
+        growthModeBtn.addEventListener('click', () => {
+            if (playerChartMode === 'growth') return;
+            playerChartMode = 'growth';
+            updatePlayerVisualizationOnly();
+        });
+        rankModeBtn.addEventListener('click', () => {
+            if (playerChartMode === 'rank') return;
+            playerChartMode = 'rank';
+            updatePlayerVisualizationOnly();
+        });
+        range3mBtn.addEventListener('click', () => {
+            if (playerChartRange === '3m') return;
+            playerChartRange = '3m';
+            updatePlayerVisualizationOnly();
+        });
+        range1yBtn.addEventListener('click', () => {
+            if (playerChartRange === '1y') return;
+            playerChartRange = '1y';
+            updatePlayerVisualizationOnly();
+        });
+        rangeAllBtn.addEventListener('click', () => {
+            if (playerChartRange === 'all') return;
+            playerChartRange = 'all';
+            updatePlayerVisualizationOnly();
+        });
 
         clanValueModeBtn.addEventListener('click', () => { clanChartMode = 'damage'; updateClan(); });
         clanGrowthModeBtn.addEventListener('click', () => { clanChartMode = 'growth'; updateClan(); });
@@ -1500,12 +1597,56 @@
         compareRange1yBtn.addEventListener('click', () => { compareChartRange = '1y'; updateCompare(); });
         compareRangeAllBtn.addEventListener('click', () => { compareChartRange = 'all'; updateCompare(); });
 
+        function resolvePlayerNickname(value) {
+            const query = String(value ?? '').trim().toLowerCase();
+            if (!query) return '';
+            const exact = playerNames.find(name => String(name).trim().toLowerCase() === query);
+            if (exact) return exact;
+            const partial = playerNames.filter(name => String(name).trim().toLowerCase().includes(query));
+            return partial.length === 1 ? partial[0] : '';
+        }
+
+        // Search text is only a draft. The chart follows selectedPlayer, not what is being typed.
+        // Selecting a player from the native datalist commits the selection via change.
+        let lastPlayerSearchValue = '';
+
         playerSearch.addEventListener('input', e => {
-            const matched = playerNames.find(name => name.toLowerCase() === e.target.value.trim().toLowerCase());
-            if (matched) { selectedPlayer = matched; updatePlayer(); }
+            // Typing is lightweight: do not rebuild/destroy the Chart.js instance on every keystroke.
+            lastPlayerSearchValue = e.target.value;
         });
 
-        [comparePlayer1, comparePlayer2, comparePlayer3].forEach(input => input.addEventListener('input', () => updateCompare()));
+        function commitPlayerSearch() {
+            const raw = playerSearch.value;
+            const matched = resolvePlayerNickname(raw);
+            if (!matched) return false;
+            if (selectedPlayer === matched) return true;
+            selectedPlayer = matched;
+            playerSearch.value = matched;
+            lastPlayerSearchValue = matched;
+            updatePlayer();
+            return true;
+        }
+
+        playerSearch.addEventListener('change', commitPlayerSearch);
+        playerSearch.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                commitPlayerSearch();
+            }
+        });
+
+        // Compare inputs are also draft-only. Rebuilding the comparison chart while
+        // the user types caused noticeable lag on mobile. Commit on change/Enter.
+        [comparePlayer1, comparePlayer2, comparePlayer3].forEach(input => {
+            input.addEventListener('input', () => {});
+            input.addEventListener('change', () => updateCompare());
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    updateCompare();
+                }
+            });
+        });
 
         // FLUX CALCULATOR: formula preserved from the supplied Flux source.
         let fluxChartInstance = null;
@@ -1594,11 +1735,19 @@
         let clanForecastChartInstance = null;
         let clanForecastHorizon = 12;
         let forecastHorizon = 8;
+        // Always take the newest N chronological observations.
+        // The sheet dates are normalized ascending, so this deliberately uses the tail, never the first N rows.
+        function latestData(values, count) {
+            const clean = Array.isArray(values) ? values : [];
+            if (!Number.isFinite(count) || count === Infinity) return clean.slice();
+            return clean.slice(Math.max(0, clean.length - count));
+        }
+
         function forecastLinear(values, horizon) {
             const clean = values.map(Number).filter(Number.isFinite);
             if (clean.length < 2) return { future: Array(horizon).fill(clean[0] || 0) };
-            // Fit the linear trend using up to the latest 20 observations.
-            const sample = clean.slice(-20);
+            // Fit the linear trend using the latest 20 observations, i.e. the 20 most recent weeks.
+            const sample = latestData(clean, 20);
             const n = sample.length;
             const meanX = (n - 1) / 2;
             const meanY = sample.reduce((a,b)=>a+b,0) / n;
@@ -1620,8 +1769,9 @@
             const target = selectedPlayer;
             if (forecastPlayerName) forecastPlayerName.textContent = target || '—';
             const horizon = forecastHorizon;
-            const series = getPlayerSeries(target);
-            const pairedAll = series.dates.map((date, i) => ({ date, value: Number(series.data[i]) }))
+            const historyDates = Array.isArray(dates) ? dates : [];
+            const rawValues = (rawPlayerData[target] || []).map(v => Number(v));
+            const pairedAll = historyDates.map((date, i) => ({ date, value: rawValues[i] }))
                 .filter(point => Number.isFinite(point.value));
             if (!pairedAll.length) {
                 if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
@@ -1631,7 +1781,7 @@
                 return;
             }
             // Fit against the latest 20 available observations; show only the latest 12 in the chart.
-            const training = pairedAll.slice(-20);
+            const training = latestData(pairedAll, 20);
             const visible = pairedAll.slice(-12);
             const model = forecastLinear(training.map(point => point.value), horizon);
             const lastDate = pairedAll[pairedAll.length-1].date || '';
@@ -1676,7 +1826,7 @@
             const totals=getClanAggregateSeries();
             const valid=totals.map((value,i)=>({value:Number(value),date:dates[i]})).filter(x=>Number.isFinite(x.value));
             if(!valid.length) return;
-            const training=valid.slice(-20), model=forecastLinear(training.map(x=>x.value),clanForecastHorizon);
+            const training=latestData(valid, 20), model=forecastLinear(training.map(x=>x.value),clanForecastHorizon);
             const last=valid[valid.length-1], futureLabels=Array.from({length:clanForecastHorizon},(_,i)=>formatForecastDate(last.date,i+1));
             const labels=valid.slice(-12).map(x=>x.date).concat(futureLabels);
             const historical=valid.slice(-12).map(x=>x.value).concat(Array(clanForecastHorizon).fill(null));
@@ -1708,7 +1858,7 @@
         function renderClanScoreDistribution(){
             const canvas = document.getElementById('clanScoreDistributionChart');
             if(!canvas) return;
-            const latestScores = playerNames.map(name => getPlayerLatestValue(name)).filter(Number.isFinite);
+            const latestScores = playerNames.map(name=>{const values=rawPlayerData[name]||[];return Number(values[values.length-1]);}).filter(Number.isFinite);
             const bins = [0,0,0,0,0,0];
             latestScores.forEach(score=>{
                 if(score < 500) bins[0]++; else if(score < 1000) bins[1]++; else if(score < 1500) bins[2]++; else if(score < 2000) bins[3]++; else if(score < 2500) bins[4]++; else bins[5]++;
@@ -1718,26 +1868,23 @@
         }
 
         window.addEventListener('load', async function () {
-            try {
-                await loadCSVData();
-            } catch (error) {
-                console.error(error);
-                document.querySelectorAll('canvas').forEach(canvas => {
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); }
-                });
-                return;
-            }
+            // Render the fallback immediately so the dashboard never appears blank while
+            // Google Sheets is loading or unavailable (including local/offline preview).
             populateDatalist();
             if (playerSearch) playerSearch.value = selectedPlayer;
             updatePlayer();
             updateCompare();
             updateLeaderboard();
-            if (typeof window.renderAchievements === 'function') window.renderAchievements();
+            updateClan();
             renderClanScoreDistribution();
             renderClanForecast();
-            runFluxSimulation();
             renderForecast();
+            if (typeof renderAchievements === 'function') renderAchievements();
+            if (typeof runFluxSimulation === 'function') runFluxSimulation();
+            setLiveDataStatus(`Cached data loaded · ${dates.length} dates · ${playerNames.length} players · checking live Google Sheets…`, 'loading');
+
+            // Live sheet remains the source of truth when it is reachable.
+            await refreshLiveData(true);
         });
 
         // ACHIEVEMENT SYSTEM — current metric thresholds, linked to Player Bubble selection.
@@ -1757,8 +1904,8 @@
           const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
           const fmt = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US',{maximumFractionDigits:2}) : '—';
           const expandedCards = new Set();
-          const getAchievementNames = () => playerNames.filter(name => hasPlayerHistory(name));
-          const valuesFor = name => getPlayerSeries(name).data.filter(Number.isFinite);
+          const names = playerNames.filter(name => name && Array.isArray(rawPlayerData[name]) && rawPlayerData[name].some(value => Number.isFinite(Number(value))));
+          const valuesFor = name => Array.isArray(rawPlayerData[name]) ? rawPlayerData[name].map(Number).filter(Number.isFinite) : [];
           const parseDate = value => { const m = String(value || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? new Date(+m[3], +m[2]-1, +m[1]) : null; };
           const dataFor = name => {
             const values = valuesFor(name);
@@ -1791,8 +1938,7 @@
             }
             let overtakes = 0;
             for (let i = 1; i < values.length; i++) {
-              const playerSeries = getPlayerSeries(name);
-              const globalIndex = playerSeries.startIndex + i;
+              const globalIndex = (dates.length - values.length) + i;
               if (globalIndex <= 0) continue;
               const currentRanks = getClanRanksAtIndex(globalIndex);
               const previousRanks = getClanRanksAtIndex(globalIndex - 1);
@@ -1847,7 +1993,6 @@
             });
           }
           function renderAchievements() {
-            const names = getAchievementNames();
             const name = typeof selectedPlayer !== 'undefined' && names.includes(selectedPlayer) ? selectedPlayer : '';
             const empty = $('achievementEmptyState');
             if (!name) {
@@ -1920,7 +2065,6 @@
               return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="h-2 bg-slate-800 rounded-full overflow-hidden mt-2"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-[10px] uppercase tracking-[.18em] text-indigo-300 font-bold mt-4">${esc(achievement.category)}</p><p class="text-sm text-slate-300 mt-2">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
             }).join('');
           }
-          window.renderAchievements = renderAchievements;
           $('achievementGrid').addEventListener('click', event => {
             const button = event.target.closest('[data-ach-toggle]');
             if (!button) return;
@@ -1939,35 +2083,5 @@
           renderAchievements();
         })();
     </script>
-<script>
-/* Navigation safety patch: normalize every tab/section pair before legacy handlers run. */
-(function () {
-  const navMap = {
-    tabPlayer: 'playerSection',
-    tabCompare: 'compareSection',
-    tabClan: 'clanSection',
-    tabLeaderboard: 'leaderboardSection'
-  };
-  const nav = document.querySelector('nav[aria-label="Main navigation"]');
-  if (!nav) return;
-  nav.addEventListener('click', function (event) {
-    const button = event.target.closest('button[id]');
-    if (!button || !Object.prototype.hasOwnProperty.call(navMap, button.id)) return;
-    const targetId = navMap[button.id];
-    Object.entries(navMap).forEach(([buttonId, sectionId]) => {
-      const tab = document.getElementById(buttonId);
-      const section = document.getElementById(sectionId);
-      const isActive = buttonId === button.id;
-      if (tab) tab.classList.toggle('active', isActive);
-      if (section) {
-        section.classList.toggle('active', isActive);
-        section.style.display = isActive ? 'block' : 'none';
-        section.setAttribute('aria-hidden', isActive ? 'false' : 'true');
-      }
-    });
-    // The normal target handler still runs and refreshes the selected tab's content.
-  }, true);
-})();
-</script>
 </div></div></body>
 </html>
