@@ -458,11 +458,13 @@
         let playerNames = [];
         let selectedPlayer = '';
 
-        // CSV DATA SOURCE — data.csv is the only source of player history.
+        // LIVE GOOGLE SHEETS CSV — the published spreadsheet is the only source of player history.
         // Only Player + Testaments/Tier X columns are visualized. Date headers are preserved.
+        const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRRXY8P7l1x1W4-0ZDnFmZC7tFRVzOgJ7irWbA5TskVco6LRfcf3FB9sh19_qhX0MBVNDU8-hnSxd5V/pub?output=csv';
+
         async function loadCSVData() {
-            const response = await fetch('data.csv', { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Unable to load data.csv (${response.status})`);
+            const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`Unable to load Google Sheets CSV (${response.status})`);
             const text = await response.text();
             const rows = parseCSVText(text);
             if (rows.length < 2) throw new Error('data.csv is empty or invalid.');
