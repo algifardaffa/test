@@ -112,8 +112,18 @@
   min-width: 0;
 }
 </style>
+<style id="initial-loading-ui">
+#initialLoadingOverlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,.94);opacity:1;visibility:visible;transition:opacity .22s ease,visibility .22s ease}
+#initialLoadingOverlay.is-hidden{opacity:0;visibility:hidden;pointer-events:none}
+.initial-loading-spinner{width:22px;height:22px;border:2px solid rgba(148,163,184,.18);border-top-color:#cbd5e1;border-radius:50%;animation:initialLoadingSpin .7s linear infinite}
+@keyframes initialLoadingSpin{to{transform:rotate(360deg)}}
+/* Player insight bubbles start collapsed on the initial Player view. */
+#playerInsights.player-insights-collapsed #playerInsightsList{display:none!important}
+#playerInsights.player-insights-collapsed{margin-bottom:0}
+</style>
 </head>
 <body class="min-h-screen bg-slate-900 text-slate-100 pb-12">
+<div id="initialLoadingOverlay" aria-live="polite" aria-label="Loading data"><div class="initial-loading-spinner" aria-hidden="true"></div></div>
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
 <!-- Header -->
 <header class="site-header mb-6 border-b border-slate-800/90 pb-4 flex items-center justify-between gap-6">
@@ -473,6 +483,20 @@
         let rawPlayerData = {};
         let playerNames = [];
         let selectedPlayer = '';
+
+        // Visual-only dummy series for the initial Player chart. It is NEVER included
+        // in playerNames, rankings, attributes, insights, leaderboard, forecasts, or any other metric.
+        const PLAYER_DUMMY_SERIES = [
+            50.00, 48.41, 51.59, 45.23, 54.77, 42.05, 57.95, 38.88, 61.12, 35.74,
+            64.26, 32.65, 67.35, 29.63, 70.37, 26.70, 73.30, 23.88, 76.12, 21.17,
+            78.83, 18.60, 81.40, 16.17, 83.83, 13.91, 86.09, 11.83, 88.17, 9.94,
+            90.06, 8.26, 91.74, 6.79, 93.21, 5.55, 94.45, 4.54, 95.46, 3.77,
+            96.23, 3.24, 96.76, 2.95, 97.05, 2.90, 97.10, 3.09, 96.91, 3.52,
+            96.48, 4.19, 95.81, 5.09, 94.91, 6.22, 93.78, 7.58, 92.42, 9.16,
+            90.84, 10.95, 89.05, 12.95, 87.05, 15.14, 84.86, 17.52, 82.48, 20.07,
+            79.93, 22.77, 77.23, 25.61, 74.39, 28.57, 71.43, 31.63, 68.37, 34.77,
+            65.23, 37.97, 62.03, 41.20, 58.80, 44.43, 55.57, 47.64, 52.36, 50.00
+        ];
 
         // Derived-data caches. Sheet data is already in memory after loading,
         // so repeated rank/metric calculations should be reused.
@@ -908,6 +932,17 @@
         }
 
         function getChartSeries(playerName, mode, range) {
+            if (playerName === '' && mode !== 'rank') {
+                const dummyDates = dates.slice(-PLAYER_DUMMY_SERIES.length);
+                const dummyData = PLAYER_DUMMY_SERIES.slice(-dummyDates.length).map(Number);
+                if (range === '3m') return { dates: dummyDates.slice(-13), data: dummyData.slice(-13) };
+                if (range === '1y') return { dates: dummyDates.slice(-52), data: dummyData.slice(-52) };
+                if (mode === 'growth') {
+                    const growth = dummyData.map((value, i) => i === 0 ? null : Number((value - dummyData[i - 1]).toFixed(2)));
+                    return { dates: dummyDates, data: growth };
+                }
+                return { dates: dummyDates, data: dummyData };
+            }
             if (mode === 'rank') return getRankSeries(playerName, range);
             if (isClanCompare(playerName)) {
                 const series = getClanAverageSeries();
@@ -984,6 +1019,7 @@
                 };
             });
             const allValues = displaySeries.flatMap(s => s.data).filter(v => typeof v === 'number' && !Number.isNaN(v));
+            if (!allValues.length) return null;
             const rankFillTarget = mode === 'rank' && chartRefName === 'player'
                 ? Math.max(1, playerNames.filter(name => hasPlayerHistory(name)).length)
                 : null;
@@ -1046,7 +1082,21 @@
         }
 
         function updatePlayerAttributes() {
-            if (!hasPlayerHistory(selectedPlayer)) selectedPlayer = playerNames.find(name => hasPlayerHistory(name)) || playerNames[0] || '';
+            if (!hasPlayerHistory(selectedPlayer)) {
+                const attrs = [
+                    ['playerAttrRank', '#', '—'], ['playerAttrPeak', '⌒', '—'], ['playerAttrAvgGrowth', '⤴', '—'],
+                    ['playerAttrBigIncrease', '↑', '—'], ['playerAttrBigDrop', '↓', '—'], ['playerAttrLastIncrease', '↻', '—'],
+                    ['playerAttrUnwavering', '◉', '—'], ['playerAttrJoinDuration', '◷', '—'], ['playerAttrTotalLme', '●', '—']
+                ];
+                const labels = ['Rank', 'Peak', 'Average Growth', 'Big Increase', 'Big Drop', 'Last Increase', 'concistensy', 'Join Duration', 'Total LME'];
+                const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
+                attrs.forEach(([id, icon, value], i) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.innerHTML = `<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${iconColors[i % iconColors.length]}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
+                });
+                return;
+            }
             const m = getComparisonMetrics(selectedPlayer);
             const ranks = getClanRanks();
             const series = getPlayerSeries(selectedPlayer);
@@ -1079,9 +1129,17 @@
         }
 
         const INSIGHT_CONFIG = { cvConsistent: 0.10, cvModerate: 0.25, clanNeutralPct: 3 };
+        document.getElementById('playerInsights')?.addEventListener('click', event => {
+            if (!event.target.closest('#playerInsights h3')) return;
+            const section = document.getElementById('playerInsights');
+            if (!section) return;
+            section.dataset.userExpanded = '1';
+            section.classList.toggle('player-insights-collapsed');
+        });
         function renderPlayerInsights() {
             const section = document.getElementById('playerInsights');
             const list = document.getElementById('playerInsightsList');
+            if (section && !section.dataset.userExpanded) section.classList.add('player-insights-collapsed');
             if (!hasPlayerHistory(selectedPlayer)) {
                 const placeholders = [
                     ['Momentum','↗'],
@@ -1546,7 +1604,9 @@
         compareRangeAllBtn.addEventListener('click', () => { compareChartRange = 'all'; updateCompare(); });
 
         playerSearch.addEventListener('input', e => {
-            const matched = playerNames.find(name => name.toLowerCase() === e.target.value.trim().toLowerCase());
+            const value = e.target.value.trim();
+            if (!value) { selectedPlayer = ''; updatePlayer(true); return; }
+            const matched = playerNames.find(name => name.toLowerCase() === value.toLowerCase());
             if (matched) { selectedPlayer = matched; updatePlayer(true); }
         });
 
@@ -1663,6 +1723,14 @@
         }
         function renderForecast() {
             const target = selectedPlayer;
+            if (!hasPlayerHistory(target)) {
+                if (forecastPlayerName) forecastPlayerName.textContent = '—';
+                if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
+                document.getElementById('forecastLatest').textContent = '—';
+                document.getElementById('forecastProjected').textContent = '—';
+                document.getElementById('forecastChange').textContent = '—';
+                return;
+            }
             if (forecastPlayerName) forecastPlayerName.textContent = target || '—';
             const horizon = forecastHorizon;
             const series = getPlayerSeries(target);
@@ -1771,16 +1839,15 @@
                     const ctx = canvas.getContext('2d');
                     if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); }
                 });
+                document.getElementById('initialLoadingOverlay')?.classList.add('is-hidden');
                 return;
             }
             populateDatalist();
-            // CSV is now authoritative: keep the active Player Bubble nickname and
-            // explicitly refresh Achievement once, after playerNames is populated.
-            if (!hasPlayerHistory(selectedPlayer)) {
-                selectedPlayer = playerNames.find(name => hasPlayerHistory(name)) || playerNames[0] || '';
-            }
+            // Keep the initial Player selection intentionally empty so the visual-only
+            // dummy chart is shown instead of automatically selecting the first real player.
+            selectedPlayer = playerNames.includes(selectedPlayer) ? selectedPlayer : '';
             if (playerSearch) playerSearch.value = selectedPlayer;
-            updatePlayer(true);
+            updatePlayer(false);
             updateCompare();
             updateLeaderboard();
             renderClanScoreDistribution();
