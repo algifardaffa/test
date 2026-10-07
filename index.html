@@ -121,6 +121,9 @@
 #playerInsights.player-insights-collapsed #playerInsightsList{display:none!important}
 #playerInsights.player-insights-collapsed{margin-bottom:0}
 </style>
+<style id="achievement-progress-monochrome-final">
+.ach-card .ach-progress-fill { background:#cbd5e1 !important; }
+</style>
 </head>
 <body class="min-h-screen bg-slate-900 text-slate-100 pb-12">
 <div id="initialLoadingOverlay" aria-live="polite" aria-label="Loading data"><div class="initial-loading-spinner" aria-hidden="true"></div></div>
@@ -484,20 +487,6 @@
         let playerNames = [];
         let selectedPlayer = '';
 
-        // Visual-only dummy series for the initial Player chart and Forecast. It is NEVER included
-        // in playerNames, rankings, attributes, insights, leaderboard, or any clan/player metric.
-        const PLAYER_DUMMY_SERIES = [
-            50.00, 48.41, 51.59, 45.23, 54.77, 42.05, 57.95, 38.88, 61.12, 35.74,
-            64.26, 32.65, 67.35, 29.63, 70.37, 26.70, 73.30, 23.88, 76.12, 21.17,
-            78.83, 18.60, 81.40, 16.17, 83.83, 13.91, 86.09, 11.83, 88.17, 9.94,
-            90.06, 8.26, 91.74, 6.79, 93.21, 5.55, 94.45, 4.54, 95.46, 3.77,
-            96.23, 3.24, 96.76, 2.95, 97.05, 2.90, 97.10, 3.09, 96.91, 3.52,
-            96.48, 4.19, 95.81, 5.09, 94.91, 6.22, 93.78, 7.58, 92.42, 9.16,
-            90.84, 10.95, 89.05, 12.95, 87.05, 15.14, 84.86, 17.52, 82.48, 20.07,
-            79.93, 22.77, 77.23, 25.61, 74.39, 28.57, 71.43, 31.63, 68.37, 34.77,
-            65.23, 37.97, 62.03, 41.20, 58.80, 44.43, 55.57, 47.64, 52.36, 50.00
-        ];
-
         // Derived-data caches. Sheet data is already in memory after loading,
         // so repeated rank/metric calculations should be reused.
         const clanRanksCache = new Map();
@@ -595,7 +584,7 @@
             clanRanksAtIndexCache.clear();
             comparisonMetricsCache.clear();
             // Preserve the active player when refreshing the live Sheet.
-            selectedPlayer = playerNames.includes(selectedPlayer) ? selectedPlayer : (playerNames[0] || '');
+            selectedPlayer = playerNames.includes(selectedPlayer) ? selectedPlayer : '';
         }
 
         function parseCSVText(text) {
@@ -932,17 +921,6 @@
         }
 
         function getChartSeries(playerName, mode, range) {
-            if (playerName === '' && mode !== 'rank') {
-                const dummyDates = dates.slice(-PLAYER_DUMMY_SERIES.length);
-                const dummyData = PLAYER_DUMMY_SERIES.slice(-dummyDates.length).map(Number);
-                if (range === '3m') return { dates: dummyDates.slice(-13), data: dummyData.slice(-13) };
-                if (range === '1y') return { dates: dummyDates.slice(-52), data: dummyData.slice(-52) };
-                if (mode === 'growth') {
-                    const growth = dummyData.map((value, i) => i === 0 ? null : Number((value - dummyData[i - 1]).toFixed(2)));
-                    return { dates: dummyDates, data: growth };
-                }
-                return { dates: dummyDates, data: dummyData };
-            }
             if (mode === 'rank') return getRankSeries(playerName, range);
             if (isClanCompare(playerName)) {
                 const series = getClanAverageSeries();
@@ -1192,6 +1170,22 @@
         }
 
         function updatePlayer(refreshAchievement = false) {
+            // No player selected = intentionally blank Player visualization.
+            // Never fall back to Tancred or any other real player.
+            if (!selectedPlayer || !hasPlayerHistory(selectedPlayer)) {
+                if (playerChartInstance) { playerChartInstance.destroy(); playerChartInstance = null; }
+                const canvas = document.getElementById('playerChart');
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
+                updatePlayerAttributes();
+                renderPlayerInsights();
+                if (typeof renderForecast === 'function') renderForecast();
+                if (refreshAchievement && typeof window.renderAchievements === 'function') window.renderAchievements();
+                return;
+            }
             renderChart('playerChart', [selectedPlayer], playerChartMode, playerChartRange, chartTitle, 'player');
             updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
             updatePlayerAttributes();
@@ -1565,11 +1559,8 @@
             }, 0);
             if (tabName === 'leaderboard') updateLeaderboard();
             if (tabName === 'achievements' && typeof window.renderAchievements === 'function') {
-                // Sync Achievement to the Player Bubble before rendering the tab.
-                if ((!selectedPlayer || !hasPlayerHistory(selectedPlayer)) && playerNames.length) {
-                    selectedPlayer = playerNames.find(name => hasPlayerHistory(name)) || playerNames[0] || '';
-                    if (playerSearch) playerSearch.value = selectedPlayer;
-                }
+                // Achievement follows the current Player Bubble selection.
+                // Do not silently select Tancred or another player.
                 window.renderAchievements();
             }
         }
@@ -1726,16 +1717,16 @@
             const horizon = forecastHorizon;
             let pairedAll;
 
-            // When no real player is selected, use the visual dummy series for Forecast too.
-            // The dummy remains completely outside all clan/player metrics and rankings.
+            // No real player selected: keep Forecast blank.
             if (!hasPlayerHistory(target)) {
-                const dummyDates = dates.slice(-PLAYER_DUMMY_SERIES.length);
-                const dummyData = PLAYER_DUMMY_SERIES.slice(-dummyDates.length).map(Number);
-                pairedAll = dummyDates.map((date, i) => ({ date, value: dummyData[i] }))
-                    .filter(point => Number.isFinite(point.value));
-                if (forecastPlayerName) forecastPlayerName.textContent = 'Dummy';
+                if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
+                if (forecastPlayerName) forecastPlayerName.textContent = '—';
+                document.getElementById('forecastLatest').textContent = '—';
+                document.getElementById('forecastProjected').textContent = '—';
+                document.getElementById('forecastChange').textContent = '—';
+                return;
             } else {
-                if (forecastPlayerName) forecastPlayerName.textContent = target || '—';
+                if (forecastPlayerName) forecastPlayerName.textContent = target;
                 const series = getPlayerSeries(target);
                 pairedAll = series.dates.map((date, i) => ({ date, value: Number(series.data[i]) }))
                     .filter(point => Number.isFinite(point.value));
@@ -1854,9 +1845,7 @@
                 return;
             }
             populateDatalist();
-            // Keep the initial Player selection intentionally empty so the visual-only
-            // dummy chart/forecast are shown instead of automatically selecting the first real player.
-            selectedPlayer = playerNames.includes(selectedPlayer) ? selectedPlayer : '';
+            // Keep initial Player selection empty; never auto-select a real player.
             if (playerSearch) playerSearch.value = selectedPlayer;
             updatePlayer(false);
             updateCompare();
