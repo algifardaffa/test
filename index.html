@@ -626,6 +626,7 @@
             clanRanksCache.clear();
             clanRanksAtIndexCache.clear();
             comparisonMetricsCache.clear();
+            clanForecastModelCache = null;
             // Preserve the active player when refreshing the live Sheet.
             selectedPlayer = playerNames.includes(selectedPlayer) ? selectedPlayer : '';
         }
@@ -901,7 +902,7 @@
         function getClanRanksAtIndex(index) {
             if (clanRanksAtIndexCache.has(index)) return clanRanksAtIndexCache.get(index);
             const sorted = playerNames
-                .map(name => ({ name, latest: getClanRawValue(name, index) }))
+                .map(name => ({ name, latest: getPlayerSeries(name).data[index] }))
                 .filter(item => Number.isFinite(item.latest))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
@@ -920,7 +921,7 @@
             const cacheKey = `${dates.length}|${playerNames.length}|raw`;
             if (clanRanksCache.has(cacheKey)) return clanRanksCache.get(cacheKey);
             const sorted = playerNames
-                .map(name => ({ name, latest: getClanRawValue(name, dates.length - 1) }))
+                .map(name => ({ name, latest: getPlayerSeries(name).data[dates.length - 1] }))
                 .filter(item => Number.isFinite(item.latest))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
@@ -1124,10 +1125,10 @@
             if (!hasPlayerHistory(selectedPlayer)) {
                 const attrs = [
                     ['playerAttrRank', '#', '—'], ['playerAttrPeak', '⌒', '—'], ['playerAttrAvgGrowth', '⤴', '—'],
-                    ['playerAttrBigIncrease', '↑', '—'], ['playerAttrBigDrop', '↓', '—'], ['playerAttrLastIncrease', '↻', '—'],
+                    ['playerAttrBigIncrease', 'Big Gain ↑', '—'], ['playerAttrBigDrop', '↓', '—'], ['playerAttrLastIncrease', '↻', '—'],
                     ['playerAttrUnwavering', '◉', '—'], ['playerAttrJoinDuration', '◷', '—'], ['playerAttrTotalLme', '●', '—']
                 ];
-                const labels = ['Rank', 'Peak', 'Growth', 'Big', 'Big Loss', 'Last Gain', 'Consistency', 'Join Duration', 'Total LME'];
+                const labels = ['Rank', 'Peak', 'Growth', 'Big Gain', 'Big Loss', 'Last Gain', 'Consistency', 'Join Duration', 'Total LME'];
                 const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
                 attrs.forEach(([id, icon, value], i) => {
                     const el = document.getElementById(id);
@@ -1143,14 +1144,14 @@
                 ['playerAttrRank', '#', `#${ranks[selectedPlayer] ?? '-'}`],
                 ['playerAttrPeak', '⌒', m.peak?.toLocaleString() ?? '-'],
                 ['playerAttrAvgGrowth', '⤴', m.avgGrowth === null ? '-' : `${m.avgGrowth >= 0 ? '+' : ''}${m.avgGrowth.toFixed(1)}`],
-                ['playerAttrBigIncrease', '↑', `+${m.bigIncrease?.toLocaleString() ?? '-'}`],
+                ['playerAttrBigIncrease', 'Big Gain ↑', `+${m.bigIncrease?.toLocaleString() ?? '-'}`],
                 ['playerAttrBigDrop', '↓', m.bigDrop === null ? '-' : m.bigDrop.toLocaleString()],
                 ['playerAttrLastIncrease', '↻', m.lastIncrease === null ? '-' : `${m.lastIncrease >= 0 ? '+' : ''}${m.lastIncrease.toLocaleString()}`],
                 ['playerAttrUnwavering', '◉', `${m.consistency.toFixed(1)}%`],
                 ['playerAttrJoinDuration', '◷', m.joinDuration],
                 ['playerAttrTotalLme', '●', m.totalLme.toLocaleString()]
             ];
-            const labels = ['Rank', 'Peak', 'Growth', 'Big', 'Big Loss', 'Last Gain', 'Consistency', 'Join Duration', 'Total LME'];
+            const labels = ['Rank', 'Peak', 'Growth', 'Big Gain', 'Big Loss', 'Last Gain', 'Consistency', 'Join Duration', 'Total LME'];
             const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
             attrs.forEach(([id, icon, value], i) => {
                 const iconColor = iconColors[i % iconColors.length];
@@ -1342,7 +1343,11 @@
             const totalsAll = getClanAggregateSeries();
             const changesAll = totalsAll.map((v, i) => i ? v - totalsAll[i - 1] : 0);
             const lastIndex = dates.length - 1;
-            const currentScores = playerNames.map(name => getClanRawValue(name, lastIndex)).filter(Number.isFinite);
+            // Active Player = players with a REAL submission in the latest RAW snapshot.
+            // Never use cleaned/forward-filled values for this count.
+            const currentScores = playerNames
+                .map(name => getClanRawValue(name, lastIndex))
+                .filter(value => Number.isFinite(value));
             const sortedScores = [...currentScores].sort((a,b)=>a-b);
             const mean = currentScores.length ? currentScores.reduce((a,b)=>a+b,0)/currentScores.length : 0;
             const median = sortedScores.length ? (sortedScores.length%2 ? sortedScores[(sortedScores.length-1)/2] : (sortedScores[sortedScores.length/2-1]+sortedScores[sortedScores.length/2])/2) : 0;
@@ -1869,6 +1874,7 @@
         let clanForecastChartInstance = null;
         let clanForecastHorizon = 12;
         let forecastHorizon = 8;
+        let clanForecastModelCache = null;
         function forecastLinear(values, horizon) {
             const clean = values.map(Number).filter(Number.isFinite);
             if (clean.length < 2) return { future: Array(horizon).fill(clean[0] || 0) };
@@ -1980,24 +1986,58 @@
         forecastHorizonButtons.forEach(button=>button.addEventListener('click',()=>{forecastHorizon=Number(button.dataset.horizon);updateForecastHorizonButtons();renderForecast();}));
         updateForecastHorizonButtons();
 
+        function getClanForecastSlope() {
+            // ONE fixed RAW clan model. Horizon buttons never rebuild this model.
+            if (clanForecastModelCache) return clanForecastModelCache;
+            const totals = getClanAggregateSeries();
+            const valid = totals
+                .map((value, i) => ({ value: Number(value), date: dates[i] }))
+                .filter(x => Number.isFinite(x.value));
+            const training = valid.slice(-20);
+            if (training.length < 2) {
+                clanForecastModelCache = { valid, training, slope: 0, latest: training.length ? training[training.length - 1].value : 0 };
+                return clanForecastModelCache;
+            }
+            const sample = training.map(x => x.value);
+            const n = sample.length;
+            const meanX = (n - 1) / 2;
+            const meanY = sample.reduce((a, b) => a + b, 0) / n;
+            let numerator = 0, denominator = 0;
+            sample.forEach((y, i) => {
+                numerator += (i - meanX) * (y - meanY);
+                denominator += (i - meanX) ** 2;
+            });
+            const slope = denominator ? numerator / denominator : 0;
+            clanForecastModelCache = { valid, training, slope, latest: training[training.length - 1].value };
+            return clanForecastModelCache;
+        }
+
         function renderClanForecast(){
             const canvas=document.getElementById('clanForecastChart');
             if(!canvas) return;
-            const totals=getClanAggregateSeries();
-            const valid=totals.map((value,i)=>({value:Number(value),date:dates[i]})).filter(x=>Number.isFinite(x.value));
+            const { valid, slope } = getClanForecastSlope();
             if(!valid.length) return;
-            const training=valid.slice(-20), model=forecastLinear(training.map(x=>x.value),clanForecastHorizon);
-            const last=valid[valid.length-1], futureLabels=Array.from({length:clanForecastHorizon},(_,i)=>formatForecastDate(last.date,i+1));
+
+            const training=valid.slice(-20);
+            const model=forecastLinear(training.map(x=>x.value),clanForecastHorizon);
+            const last=valid[valid.length-1];
+            const futureLabels=Array.from({length:clanForecastHorizon},(_,i)=>formatForecastDate(last.date,i+1));
             const labels=valid.slice(-12).map(x=>x.date).concat(futureLabels);
             const historical=valid.slice(-12).map(x=>x.value).concat(Array(clanForecastHorizon).fill(null));
-            const visible=valid.slice(-12); const proj=Array(Math.max(0,visible.length-1)).fill(null).concat([visible[visible.length-1].value],model.future);
+            const visible=valid.slice(-12);
+            const proj=Array(Math.max(0,visible.length-1)).fill(null).concat([visible[visible.length-1].value],model.future);
             if(clanForecastChartInstance) clanForecastChartInstance.destroy();
             clanForecastChartInstance=new Chart(canvas.getContext('2d'),{type:'line',data:{labels,datasets:[{label:'Historical clan total',data:historical,borderColor:'#60a5fa',borderWidth:2,pointRadius:2,tension:.22},{label:'Clan forecast',data:proj,borderColor:'#a78bfa',borderWidth:2,borderDash:[7,5],pointRadius:2,tension:.22}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#cbd5e1'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f8fafc',bodyColor:'#cbd5e1'}},scales:{x:{ticks:{color:'#94a3b8',maxTicksLimit:7,maxRotation:45},grid:{color:'rgba(148,163,184,.08)'}},y:{beginAtZero:false,ticks:{color:'#94a3b8'},grid:{color:'rgba(148,163,184,.12)'}}}}});
-            const current=last.value, projectedValue=model.future.length ? model.future[model.future.length-1] : current, slope=model.future.length ? (projectedValue-current)/clanForecastHorizon : 0;
+
+            const current=last.value;
+            const projectedValue=model.future.length ? model.future[model.future.length-1] : current;
             const latestEl=document.getElementById('clanLatestValue'), projectedEl=document.getElementById('clanProjectedValue'), changeEl=document.getElementById('clanEstimatedChange');
             if(latestEl) latestEl.textContent=Math.round(current).toLocaleString();
             if(projectedEl) projectedEl.textContent=Math.round(projectedValue).toLocaleString();
             if(changeEl){ const delta=projectedValue-current; changeEl.textContent=(delta>=0?'+':'')+Math.round(delta).toLocaleString(); changeEl.style.color=delta>=0?'#4ade80':'#fb7185'; }
+
+            // Diff 15/16/17 ETA is based on the SAME fixed RAW regression slope.
+            // Toggling 1/2/3 months changes only the chart horizon, never these ETAs.
             [[66000,'clanTarget15'],[76500,'clanTarget16'],[87000,'clanTarget17']].forEach(([target,id])=>{
                 const el=document.getElementById(id); if(!el) return;
                 if(current>=target){el.textContent='Reached';return;}
