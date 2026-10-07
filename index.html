@@ -631,18 +631,40 @@
             }
         }
 
+        // SINGLE PLAYER HISTORY SOURCE OF TRUTH
+        // Every feature must use this series instead of treating the global 92 snapshots
+        // as if every player existed from snapshot #1.
         function getPlayerSeries(playerName) {
-            const data = rawPlayerData[playerName] || [];
-            // A player's clan history starts at their first real score.
-            // Values before that point are intentionally null and must NOT be
-            // forward-filled or counted as LME observations.
-            const firstValidIndex = data.findIndex(value => Number.isFinite(Number(value)));
-            if (firstValidIndex < 0) return { data: [], startIndex: dates.length, dates: [] };
+            const data = rawPlayerData[playerName];
+            if (!Array.isArray(data)) {
+                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0 };
+            }
+
+            // Before first real score: null = player has not joined yet.
+            // After first real score: loadCSVData has already forward-filled 0/blank values.
+            const startIndex = data.findIndex(value => Number.isFinite(Number(value)));
+            if (startIndex < 0) {
+                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0 };
+            }
+
+            const playerData = data.slice(startIndex).map(Number);
+            const playerDates = dates.slice(startIndex, startIndex + playerData.length);
             return {
-                data: data.slice(firstValidIndex),
-                startIndex: firstValidIndex,
-                dates: dates.slice(firstValidIndex)
+                data: playerData,
+                dates: playerDates,
+                startIndex,
+                endIndex: startIndex + playerData.length - 1,
+                totalLme: playerData.filter(Number.isFinite).length
             };
+        }
+
+        function hasPlayerHistory(playerName) {
+            return !!playerName && playerNames.includes(playerName) && getPlayerSeries(playerName).totalLme > 0;
+        }
+
+        function getPlayerLatestValue(playerName) {
+            const series = getPlayerSeries(playerName);
+            return series.totalLme ? series.data[series.data.length - 1] : NaN;
         }
 
         function parseDateDMY(dateString) {
@@ -662,7 +684,7 @@
 
         function getClanAverageSeries() {
             const values = dates.map((_, index) => {
-                const scores = playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length)
+                const scores = playerNames.filter(name => hasPlayerHistory(name))
                     .map(name => {
                         const series = getPlayerSeries(name);
                         const j = index - series.startIndex;
@@ -684,7 +706,7 @@
 
         function getComparisonMetrics(playerName) {
             if (isClanCompare(playerName)) {
-                const members = playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length);
+                const members = playerNames.filter(name => hasPlayerHistory(name));
                 const memberMetrics = members.map(name => getComparisonMetrics(name));
                 const avg = key => {
                     const vals = memberMetrics.map(m => Number(m[key])).filter(Number.isFinite);
@@ -709,7 +731,6 @@
                     totalLme: avg('totalLme')
                 };
             }
-            const data = rawPlayerData[playerName] || [];
             const series = getPlayerSeries(playerName);
             const observedData = series.data.filter(value => Number.isFinite(Number(value))).map(Number);
             if (!observedData.length) return { name: playerName, latest: null, peak: null, avgGrowth: null, bigIncrease: null, bigDrop: null, lastIncrease: null, consistency: 0, rank: null, joinDuration: '-', totalLme: 0 };
@@ -775,7 +796,7 @@
 
         function getClanRanksAtIndex(index) {
             const sorted = playerNames
-                .filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name] && rawPlayerData[name].length)
+                .filter(name => hasPlayerHistory(name))
                 .map(name => {
                     const series = getPlayerSeries(name);
                     const j = index - series.startIndex;
@@ -796,8 +817,9 @@
 
         function getClanRanks() {
             const sorted = playerNames
-                .filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name] && rawPlayerData[name].length)
-                .map(name => ({ name, latest: rawPlayerData[name][rawPlayerData[name].length - 1] }))
+                .filter(name => hasPlayerHistory(name))
+                .map(name => ({ name, latest: getPlayerLatestValue(name) }))
+                .filter(item => Number.isFinite(item.latest))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
             let rank = 0;
@@ -921,7 +943,7 @@
             });
             const allValues = displaySeries.flatMap(s => s.data).filter(v => typeof v === 'number' && !Number.isNaN(v));
             const rankFillTarget = mode === 'rank' && chartRefName === 'player'
-                ? Math.max(1, playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length).length)
+                ? Math.max(1, playerNames.filter(name => hasPlayerHistory(name)).length)
                 : null;
             if (rankFillTarget !== null) {
                 datasets.forEach(ds => { ds.fill = { target: { value: rankFillTarget } }; });
@@ -952,7 +974,7 @@
                     },
                     scales: {
                         x: { grid: { color: 'rgba(51, 65, 85, 0.4)', drawBorder: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 15 } },
-                        y: { grid: { color: 'rgba(51, 65, 85, 0.4)', drawBorder: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, stepSize: mode === 'rank' ? 1 : undefined, precision: mode === 'rank' ? 0 : undefined }, beginAtZero: mode === 'growth', reverse: mode === 'rank', min: mode === 'rank' && chartRefName === 'player' ? 1 : undefined, max: mode === 'rank' && chartRefName === 'player' ? Math.max(1, playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length).length) : undefined, suggestedMax: mode === 'rank' ? undefined : config.maxValue, suggestedMin: mode === 'growth' ? config.minValue : undefined }
+                        y: { grid: { color: 'rgba(51, 65, 85, 0.4)', drawBorder: false }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, stepSize: mode === 'rank' ? 1 : undefined, precision: mode === 'rank' ? 0 : undefined }, beginAtZero: mode === 'growth', reverse: mode === 'rank', min: mode === 'rank' && chartRefName === 'player' ? 1 : undefined, max: mode === 'rank' && chartRefName === 'player' ? Math.max(1, playerNames.filter(name => hasPlayerHistory(name)).length) : undefined, suggestedMax: mode === 'rank' ? undefined : config.maxValue, suggestedMin: mode === 'growth' ? config.minValue : undefined }
                     }
                 }
             });
@@ -982,7 +1004,7 @@
         }
 
         function updatePlayerAttributes() {
-            if (!selectedPlayer || !rawPlayerData[selectedPlayer]) selectedPlayer = playerNames.find(name => rawPlayerData[name] && rawPlayerData[name].length) || playerNames[0];
+            if (!hasPlayerHistory(selectedPlayer)) selectedPlayer = playerNames.find(name => hasPlayerHistory(name)) || playerNames[0] || '';
             const m = getComparisonMetrics(selectedPlayer);
             const ranks = getClanRanks();
             const series = getPlayerSeries(selectedPlayer);
@@ -1009,7 +1031,7 @@
         function renderPlayerInsights() {
             const section = document.getElementById('playerInsights');
             const list = document.getElementById('playerInsightsList');
-            if (!selectedPlayer || !rawPlayerData[selectedPlayer]) {
+            if (!hasPlayerHistory(selectedPlayer)) {
                 const placeholders = [
                     ['Momentum','↗'],
                     ['Personal Record','🏆'],
@@ -1054,7 +1076,7 @@
             }
             if (valid.length) {
                 const latestIndex=series.startIndex+series.data.length-1;
-                const clanScores=playerNames.filter(n=>rawPlayerData[n] && rawPlayerData[n].length).map(n=>{const ps=getPlayerSeries(n); const i=latestIndex-ps.startIndex; return i>=0&&i<ps.data.length?Number(ps.data[i]):NaN;}).filter(Number.isFinite);
+                const clanScores=playerNames.filter(n=>hasPlayerHistory(n)).map(n=>{const ps=getPlayerSeries(n); const i=latestIndex-ps.startIndex; return i>=0&&i<ps.data.length?Number(ps.data[i]):NaN;}).filter(Number.isFinite);
                 const playerLatest=valid[valid.length-1].v;
                 if (clanScores.length && clanScores.some(v=>v!==playerLatest || true)) { const avg=clanScores.reduce((a,b)=>a+b,0)/clanScores.length; if(avg!==0){const pct=(playerLatest-avg)/Math.abs(avg)*100; const neutral=Math.abs(pct)<=INSIGHT_CONFIG.clanNeutralPct; add('Clan Gap',neutral?'↔':pct>0?'↑':'↓',neutral?`Latest score is within ${INSIGHT_CONFIG.clanNeutralPct}% of the clan average.`:`${pct>0?'Above':'Below'} Clan Average: score is ${Math.abs(pct).toFixed(1)}% ${pct>0?'above':'below'} the clan average.`,neutral?'neutral':pct>0?'positive':'negative');} }
             }
@@ -1139,7 +1161,7 @@
             const header = document.getElementById('comparisonHeader');
             const body = document.getElementById('comparisonBody');
             if (!header || !body) return;
-            const uniquePlayers = [...new Set(players)].filter(name => name && (isClanCompare(name) || rawPlayerData[name]));
+            const uniquePlayers = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name)));
             if (!uniquePlayers.length) {
                 header.innerHTML = '<th class="text-left py-3 px-3 text-slate-400">Attribute</th><th class="text-right py-3 px-3 text-slate-500">Player 1</th><th class="text-right py-3 px-3 text-slate-500">Player 2</th><th class="text-right py-3 px-3 text-slate-500">Player 3</th>';
                 const emptyAttrs = ['Rank','Peak','Average Growth','Big Increase','Big Drop','Last Increase','Consistency','Join Duration','Total LME'];
@@ -1175,7 +1197,7 @@
             const section = document.getElementById('comparisonInsights');
             const list = document.getElementById('comparisonInsightsList');
             if (!section || !list) return;
-            const names = [...new Set(players)].filter(name => name && (isClanCompare(name) || rawPlayerData[name]));
+            const names = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name)));
             if (names.length < 2) {
                 const placeholders = [
                     ['Momentum','↗'],
@@ -1223,7 +1245,7 @@
         function renderClanInsights() {
             const section=document.getElementById('clanInsights'), list=document.getElementById('clanInsightsList');
             if(!section||!list) return;
-            const names=playerNames.filter(name=>name&&rawPlayerData[name]?.length);
+            const names=playerNames.filter(name=>hasPlayerHistory(name));
             if(!names.length){section.classList.add('hidden');list.innerHTML='';return;}
             const metrics=names.map(getComparisonMetrics);
             const avgGrowth=metrics.reduce((s,m)=>s+(Number(m.avgGrowth)||0),0)/metrics.length;
@@ -1262,7 +1284,7 @@
             const canvas = document.getElementById('comparisonRadar');
             if (!canvas) return;
             if (comparisonRadarInstance) { comparisonRadarInstance.destroy(); comparisonRadarInstance = null; }
-            const metrics = [...new Set(players)].filter(name => name && (isClanCompare(name) || rawPlayerData[name])).map(getComparisonMetrics);
+            const metrics = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name))).map(getComparisonMetrics);
             const axes = [
                 { label: 'Peak', key: 'peak' },
                 { label: 'Current Value', key: 'latest' },
@@ -1271,7 +1293,7 @@
                 { label: 'Consistency', key: 'consistency' }
             ];
             // Normalize against every available clan member, not just the selected players.
-            const clanMetrics = playerNames.filter(name => name && rawPlayerData[name]?.length).map(getComparisonMetrics);
+            const clanMetrics = playerNames.filter(name => hasPlayerHistory(name)).map(getComparisonMetrics);
             const ranges = Object.fromEntries(axes.map(axis => {
                 const values = clanMetrics.map(m => Number(m[axis.key] ?? 0)).filter(Number.isFinite);
                 return [axis.key, { min: Math.min(...values), max: Math.max(...values) }];
@@ -1329,7 +1351,7 @@
             if (!body) return;
             const currentRankMap = getClanRanks();
             const previousRankMap = getClanRanksAtIndex(dates.length - 2);
-            const ranking = playerNames.filter(name => typeof name === 'string' && name.trim() !== '' && rawPlayerData[name]?.length).map(name => {
+            const ranking = playerNames.filter(name => hasPlayerHistory(name)).map(name => {
                 const m = getComparisonMetrics(name);
                 const currentRank = Number(currentRankMap[name]);
                 const previousRank = Number(previousRankMap[name]);
@@ -1586,9 +1608,8 @@
             const target = selectedPlayer;
             if (forecastPlayerName) forecastPlayerName.textContent = target || '—';
             const horizon = forecastHorizon;
-            const historyDates = Array.isArray(dates) ? dates : [];
-            const rawValues = (rawPlayerData[target] || []).map(v => Number(v));
-            const pairedAll = historyDates.map((date, i) => ({ date, value: rawValues[i] }))
+            const series = getPlayerSeries(target);
+            const pairedAll = series.dates.map((date, i) => ({ date, value: Number(series.data[i]) }))
                 .filter(point => Number.isFinite(point.value));
             if (!pairedAll.length) {
                 if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
@@ -1675,7 +1696,7 @@
         function renderClanScoreDistribution(){
             const canvas = document.getElementById('clanScoreDistributionChart');
             if(!canvas) return;
-            const latestScores = playerNames.map(name=>{const values=rawPlayerData[name]||[];return Number(values[values.length-1]);}).filter(Number.isFinite);
+            const latestScores = playerNames.map(name => getPlayerLatestValue(name)).filter(Number.isFinite);
             const bins = [0,0,0,0,0,0];
             latestScores.forEach(score=>{
                 if(score < 500) bins[0]++; else if(score < 1000) bins[1]++; else if(score < 1500) bins[2]++; else if(score < 2000) bins[3]++; else if(score < 2500) bins[4]++; else bins[5]++;
@@ -1723,8 +1744,8 @@
           const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
           const fmt = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US',{maximumFractionDigits:2}) : '—';
           const expandedCards = new Set();
-          const names = playerNames.filter(name => name && Array.isArray(rawPlayerData[name]) && rawPlayerData[name].some(value => Number.isFinite(Number(value))));
-          const valuesFor = name => Array.isArray(rawPlayerData[name]) ? rawPlayerData[name].map(Number).filter(Number.isFinite) : [];
+          const names = playerNames.filter(name => hasPlayerHistory(name));
+          const valuesFor = name => getPlayerSeries(name).data.filter(Number.isFinite);
           const parseDate = value => { const m = String(value || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? new Date(+m[3], +m[2]-1, +m[1]) : null; };
           const dataFor = name => {
             const values = valuesFor(name);
@@ -1757,7 +1778,8 @@
             }
             let overtakes = 0;
             for (let i = 1; i < values.length; i++) {
-              const globalIndex = (dates.length - values.length) + i;
+              const playerSeries = getPlayerSeries(name);
+              const globalIndex = playerSeries.startIndex + i;
               if (globalIndex <= 0) continue;
               const currentRanks = getClanRanksAtIndex(globalIndex);
               const previousRanks = getClanRanksAtIndex(globalIndex - 1);
@@ -1933,4 +1955,4 @@
 })();
 </script>
 </div></div></body>
-</html>
+        </html>
