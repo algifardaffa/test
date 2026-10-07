@@ -112,6 +112,14 @@
   min-width: 0;
 }
 </style>
+<style id="achievement-progress-monochrome-v6">
+/* FINAL: achievement progress bars are always soft/dim white, never tier-colored. */
+.ach-card .ach-progress-fill,
+.ach-card .ach-progress-fill[style] {
+  background:#cbd5e1 !important;
+  box-shadow:none !important;
+}
+</style>
 <style id="initial-loading-ui">
 #initialLoadingOverlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,.94);opacity:1;visibility:visible;transition:opacity .22s ease,visibility .22s ease}
 #initialLoadingOverlay.is-hidden{opacity:0;visibility:hidden;pointer-events:none}
@@ -1119,17 +1127,14 @@
             const list = document.getElementById('playerInsightsList');
             if (section && !section.dataset.userExpanded) section.classList.add('player-insights-collapsed');
             if (!hasPlayerHistory(selectedPlayer)) {
-                const placeholders = [
-                    ['Momentum','↗'],
-                    ['Personal Record','🏆'],
-                    ['Clan Rank','◉'],
-                    ['Clan Gap','↔']
-                ];
-                const colors={positive:'border-emerald-500/30 bg-emerald-500/5',negative:'border-rose-500/30 bg-rose-500/5',neutral:'border-slate-600/60 bg-slate-900/40'};
-                list.innerHTML=placeholders.map(([title,icon])=>`<div class="rounded-xl border p-3 ${colors.neutral}"><div class="flex items-center gap-2 text-xs font-bold text-white"><span>${icon}</span><span>${title}</span></div><p class="text-xs text-slate-500 mt-1.5 leading-relaxed">-</p></div>`).join('');
-                section.classList.remove('hidden');
+                // No selected player = no placeholder/dummy insight data.
+                list.innerHTML = '';
+                section.classList.add('hidden');
                 return;
             }
+            // Once a real player is selected, show the actual insight bubbles.
+            section.classList.remove('hidden');
+            section.classList.remove('player-insights-collapsed');
             const series = getPlayerSeries(selectedPlayer);
             const vals = (series.data || []).map(Number);
             const ds = (series.dates || []).slice(-vals.length);
@@ -1182,6 +1187,7 @@
                 updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
                 updatePlayerAttributes();
                 renderPlayerInsights();
+                document.getElementById('playerInsights')?.classList.add('hidden');
                 if (typeof renderForecast === 'function') renderForecast();
                 if (refreshAchievement && typeof window.renderAchievements === 'function') window.renderAchievements();
                 return;
@@ -1594,11 +1600,37 @@
         compareRange1yBtn.addEventListener('click', () => { compareChartRange = '1y'; updateCompare(); });
         compareRangeAllBtn.addEventListener('click', () => { compareChartRange = 'all'; updateCompare(); });
 
+        function selectPlayerFromSearch(rawValue) {
+            const value = String(rawValue || '').trim();
+            const matched = value
+                ? playerNames.find(name => name.toLowerCase() === value.toLowerCase())
+                : '';
+            selectedPlayer = matched || '';
+            if (playerSearch && matched) playerSearch.value = matched;
+            updatePlayer(true);
+        }
+
         playerSearch.addEventListener('input', e => {
+            // Never keep showing the previous player's data while a new nickname is being typed.
             const value = e.target.value.trim();
-            if (!value) { selectedPlayer = ''; updatePlayer(true); return; }
-            const matched = playerNames.find(name => name.toLowerCase() === value.toLowerCase());
-            if (matched) { selectedPlayer = matched; updatePlayer(true); }
+            const matched = value
+                ? playerNames.find(name => name.toLowerCase() === value.toLowerCase())
+                : '';
+            if (matched) {
+                selectedPlayer = matched;
+                e.target.value = matched;
+                updatePlayer(true);
+            } else {
+                selectedPlayer = '';
+                updatePlayer(true);
+            }
+        });
+        playerSearch.addEventListener('change', e => selectPlayerFromSearch(e.target.value));
+        playerSearch.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                selectPlayerFromSearch(e.target.value);
+            }
         });
 
         [comparePlayer1, comparePlayer2, comparePlayer3].forEach(input => input.addEventListener('input', () => updateCompare()));
@@ -1848,6 +1880,7 @@
             // Keep initial Player selection empty; never auto-select a real player.
             if (playerSearch) playerSearch.value = selectedPlayer;
             updatePlayer(false);
+            document.getElementById('playerInsights')?.classList.add('hidden');
             updateCompare();
             updateLeaderboard();
             renderClanScoreDistribution();
@@ -1981,13 +2014,9 @@
             let name = '';
             if (typeof selectedPlayer !== 'undefined' && achievementNames.includes(selectedPlayer)) {
               name = selectedPlayer;
-            } else if (achievementNames.length) {
-              // If Achievement is opened before the Player renderer has synced
-              // its state, adopt the first real player as the active selection.
-              name = achievementNames[0];
-              selectedPlayer = name;
-              if (typeof playerSearch !== 'undefined' && playerSearch) playerSearch.value = name;
             }
+            // Never auto-select the first player. Achievement follows the Player Bubble only.
+            // With no selected player, keep the empty state and never inject dummy data.
             const empty = $('achievementEmptyState');
             if (!name) {
               empty.classList.remove('hidden');
@@ -2053,10 +2082,10 @@
                 const percent = !metric.available ? 0 : achievement.rank
                   ? (metric.value > 0 ? Math.max(0,Math.min(100,tier.target / metric.value * 100)) : 0)
                   : Math.max(0,Math.min(100,metric.value / Math.max(Number.EPSILON,tier.target) * 100));
-                return `<div class="ach-tier-detail rounded-xl p-3 ${tier.unlocked ? 'bg-slate-800/70' : 'bg-slate-950/50'}" style="${tierBorder(tier)}"><div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-lg" style="${tierColor(tier)}">${tier.icon}</span><span class="text-sm font-bold ach-tier-name" style="${tierColor(tier)}">${tier.name}</span></div><span class="text-[10px] font-bold ach-tier-state" style="${tier.unlocked ? `color:${tier.color} !important` : 'color:#94a3b8 !important'}">${state.toUpperCase()}</span></div><p class="text-xs text-slate-300 mt-2">${requirement}</p><div class="ach-progress-track"><div class="ach-progress-fill" style="width:${percent}%;background:${tier.color} !important"></div></div></div>`;
+                return `<div class="ach-tier-detail rounded-xl p-3 ${tier.unlocked ? 'bg-slate-800/70' : 'bg-slate-950/50'}" style="${tierBorder(tier)}"><div class="flex items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="text-lg" style="${tierColor(tier)}">${tier.icon}</span><span class="text-sm font-bold ach-tier-name" style="${tierColor(tier)}">${tier.name}</span></div><span class="text-[10px] font-bold ach-tier-state" style="${tier.unlocked ? `color:${tier.color} !important` : 'color:#94a3b8 !important'}">${state.toUpperCase()}</span></div><p class="text-xs text-slate-300 mt-2">${requirement}</p><div class="ach-progress-track"><div class="ach-progress-fill" style="width:${percent}%"></div></div></div>`;
               }).join('');
               const cardTier = highest || tiers[0];
-              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="ach-progress-track"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%;background:${cardTier.color} !important"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-[10px] uppercase tracking-[.18em] text-indigo-300 font-bold mt-4">${esc(achievement.category)}</p><p class="text-sm text-slate-300 mt-2">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
+              return `<article class="ach-card rounded-2xl border bg-slate-900/75 overflow-hidden"><button type="button" class="ach-card-toggle w-full text-left p-4 md:p-5 hover:bg-slate-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500" data-ach-toggle="${achievement.id}" aria-expanded="${expanded ? 'true' : 'false'}"><div class="flex items-start gap-3"><div class="min-w-0 flex-1"><div class="flex items-center gap-2 min-w-0"><h3 class="font-bold text-white truncate">${esc(achievement.name)}</h3>${collapsedSummary}</div><div class="mt-3 text-xs text-slate-300">${collapsedProgressText}</div><div class="ach-progress-track"><div class="h-full rounded-full transition-all ach-progress-fill" style="width:${collapsedPercent}%"></div></div></div><span class="text-slate-400 text-lg ml-1" aria-hidden="true">${expanded ? '−' : '+'}</span></div></button>${expanded ? `<div class="px-4 pb-4 md:px-5 md:pb-5 border-t border-slate-800"><p class="text-[10px] uppercase tracking-[.18em] text-indigo-300 font-bold mt-4">${esc(achievement.category)}</p><p class="text-sm text-slate-300 mt-2">${esc(achievement.desc)}</p><p class="text-xs text-slate-400 mt-2">${currentMetricText}</p><div class="mt-4 space-y-2">${expandedDetails}</div></div>` : ''}</article>`;
             }).join('');
           }
           $('achievementGrid').addEventListener('click', event => {
