@@ -484,8 +484,8 @@
         let playerNames = [];
         let selectedPlayer = '';
 
-        // Visual-only dummy series for the initial Player chart. It is NEVER included
-        // in playerNames, rankings, attributes, insights, leaderboard, forecasts, or any other metric.
+        // Visual-only dummy series for the initial Player chart and Forecast. It is NEVER included
+        // in playerNames, rankings, attributes, insights, leaderboard, or any clan/player metric.
         const PLAYER_DUMMY_SERIES = [
             50.00, 48.41, 51.59, 45.23, 54.77, 42.05, 57.95, 38.88, 61.12, 35.74,
             64.26, 32.65, 67.35, 29.63, 70.37, 26.70, 73.30, 23.88, 76.12, 21.17,
@@ -1723,19 +1723,30 @@
         }
         function renderForecast() {
             const target = selectedPlayer;
+            const horizon = forecastHorizon;
+            let pairedAll;
+
+            // When no real player is selected, use the visual dummy series for Forecast too.
+            // The dummy remains completely outside all clan/player metrics and rankings.
             if (!hasPlayerHistory(target)) {
-                if (forecastPlayerName) forecastPlayerName.textContent = '—';
+                const dummyDates = dates.slice(-PLAYER_DUMMY_SERIES.length);
+                const dummyData = PLAYER_DUMMY_SERIES.slice(-dummyDates.length).map(Number);
+                pairedAll = dummyDates.map((date, i) => ({ date, value: dummyData[i] }))
+                    .filter(point => Number.isFinite(point.value));
+                if (forecastPlayerName) forecastPlayerName.textContent = 'Dummy';
+            } else {
+                if (forecastPlayerName) forecastPlayerName.textContent = target || '—';
+                const series = getPlayerSeries(target);
+                pairedAll = series.dates.map((date, i) => ({ date, value: Number(series.data[i]) }))
+                    .filter(point => Number.isFinite(point.value));
+            }
+            if (!pairedAll.length) {
                 if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
                 document.getElementById('forecastLatest').textContent = '—';
                 document.getElementById('forecastProjected').textContent = '—';
                 document.getElementById('forecastChange').textContent = '—';
                 return;
             }
-            if (forecastPlayerName) forecastPlayerName.textContent = target || '—';
-            const horizon = forecastHorizon;
-            const series = getPlayerSeries(target);
-            const pairedAll = series.dates.map((date, i) => ({ date, value: Number(series.data[i]) }))
-                .filter(point => Number.isFinite(point.value));
             if (!pairedAll.length) {
                 if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
                 document.getElementById('forecastLatest').textContent = '—';
@@ -1844,7 +1855,7 @@
             }
             populateDatalist();
             // Keep the initial Player selection intentionally empty so the visual-only
-            // dummy chart is shown instead of automatically selecting the first real player.
+            // dummy chart/forecast are shown instead of automatically selecting the first real player.
             selectedPlayer = playerNames.includes(selectedPlayer) ? selectedPlayer : '';
             if (playerSearch) playerSearch.value = selectedPlayer;
             updatePlayer(false);
@@ -1854,6 +1865,8 @@
             renderClanForecast();
             runFluxSimulation();
             renderForecast();
+            // CSV is loaded and all initial UI/charts are ready: stop the spinner.
+            requestAnimationFrame(() => document.getElementById('initialLoadingOverlay')?.classList.add('is-hidden'));
         });
 
         // ACHIEVEMENT SYSTEM — current metric thresholds, linked to Player Bubble selection.
