@@ -87,7 +87,7 @@
 .ach-card .ach-tier-detail { border-color:rgba(51,65,85,.6) !important; }
 .ach-card .ach-tier-detail .ach-tier-name { color:#cbd5e1 !important; }
 .ach-card .ach-tier-detail .ach-tier-state { color:#94a3b8 !important; }
-.ach-card .ach-progress-fill { background:#cbd5e1 !important; }
+.ach-card .ach-progress-fill { background:#64748b !important; }
 </style>
 <style id="achievement-tier-colors-v47">
 /* Reference palette: tier names/icons/bars use their tier color; Achieved stays green. */
@@ -116,25 +116,25 @@
 /* FINAL: achievement progress bars are always soft/dim white, never tier-colored. */
 .ach-card .ach-progress-fill,
 .ach-card .ach-progress-fill[style] {
-  background:#cbd5e1 !important;
+  background:#64748b !important;
   box-shadow:none !important;
 }
 </style>
 <style id="initial-loading-ui">
 #initialLoadingOverlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,.94);opacity:1;visibility:visible;transition:opacity .22s ease,visibility .22s ease}
 #initialLoadingOverlay.is-hidden{opacity:0;visibility:hidden;pointer-events:none}
-.initial-loading-spinner{width:22px;height:22px;border:2px solid rgba(148,163,184,.18);border-top-color:#cbd5e1;border-radius:50%;animation:initialLoadingSpin .7s linear infinite}
+.initial-loading-content{display:flex;flex-direction:column;align-items:center;gap:10px}.initial-loading-text{font-size:12px;font-weight:600;letter-spacing:.08em;color:#94a3b8}.initial-loading-spinner{width:22px;height:22px;border:2px solid rgba(148,163,184,.18);border-top-color:#cbd5e1;border-radius:50%;animation:initialLoadingSpin .7s linear infinite}
 @keyframes initialLoadingSpin{to{transform:rotate(360deg)}}
 /* Player insight bubbles start collapsed on the initial Player view. */
 #playerInsights.player-insights-collapsed #playerInsightsList{display:none!important}
 #playerInsights.player-insights-collapsed{margin-bottom:0}
 </style>
 <style id="achievement-progress-monochrome-final">
-.ach-card .ach-progress-fill { background:#cbd5e1 !important; }
+.ach-card .ach-progress-fill { background:#64748b !important; }
 </style>
 </head>
 <body class="min-h-screen bg-slate-900 text-slate-100 pb-12">
-<div id="initialLoadingOverlay" aria-live="polite" aria-label="Loading data"><div class="initial-loading-spinner" aria-hidden="true"></div></div>
+<div id="initialLoadingOverlay" aria-live="polite" aria-label="Loading data"><div class="initial-loading-content"><div class="initial-loading-spinner" aria-hidden="true"></div><div class="initial-loading-text">Loading</div></div></div>
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
 <!-- Header -->
 <header class="site-header mb-6 border-b border-slate-800/90 pb-4 flex items-center justify-between gap-6">
@@ -1127,9 +1127,16 @@
             const list = document.getElementById('playerInsightsList');
             if (section && !section.dataset.userExpanded) section.classList.add('player-insights-collapsed');
             if (!hasPlayerHistory(selectedPlayer)) {
-                // No selected player = no placeholder/dummy insight data.
-                list.innerHTML = '';
-                section.classList.add('hidden');
+                // No player selected: show the same insight grid structure, but with
+                // neutral placeholders only. This is UI state, not dummy player data.
+                section.classList.remove('hidden');
+                section.classList.remove('player-insights-collapsed');
+                list.innerHTML = [
+                    ['Momentum','↗','—','neutral'],
+                    ['Personal Record','🏆','—','neutral'],
+                    ['Clan Rank','◉','—','neutral'],
+                    ['Clan Gap','↔','—','neutral']
+                ].map(([title,icon,desc,status])=>`<div class="rounded-xl border p-3 border-slate-600/60 bg-slate-900/40"><div class="flex items-center gap-2 text-xs font-bold text-white"><span>${icon}</span><span>${title}</span></div><p class="text-xs text-slate-400 mt-1.5 leading-relaxed">${desc}</p></div>`).join('');
                 return;
             }
             // Once a real player is selected, show the actual insight bubbles.
@@ -1174,20 +1181,30 @@
             section.classList.toggle('hidden',insights.length===0);
         }
 
+        function renderPlayerPlaceholderChart() {
+            const canvas = document.getElementById('playerChart');
+            if (!canvas) return;
+            if (playerChartInstance) { playerChartInstance.destroy(); playerChartInstance = null; }
+            const rangeDays = playerChartRange === '3m' ? 92 : playerChartRange === '1y' ? 365 : Infinity;
+            const labels = rangeDays === Infinity ? dates.slice() : dates.slice(-Math.max(1, Math.ceil(rangeDays / 7)));
+            const ctx = canvas.getContext('2d');
+            playerChartInstance = new Chart(ctx, {
+                type:'line', data:{labels, datasets:[]},
+                options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{
+                    x:{grid:{color:'rgba(51,65,85,.4)'},ticks:{color:'#64748b',maxTicksLimit:15,maxRotation:45}},
+                    y:{beginAtZero:true,min:0,max:1,ticks:{display:false},grid:{color:'rgba(51,65,85,.4)'}}
+                }}
+            });
+        }
+
         function updatePlayer(refreshAchievement = false) {
             // No player selected = intentionally blank Player visualization.
             // Never fall back to Tancred or any other real player.
             if (!selectedPlayer || !hasPlayerHistory(selectedPlayer)) {
-                if (playerChartInstance) { playerChartInstance.destroy(); playerChartInstance = null; }
-                const canvas = document.getElementById('playerChart');
-                if (canvas) {
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
+                renderPlayerPlaceholderChart();
                 updateControls([damageModeBtn, growthModeBtn, rankModeBtn, range3mBtn, range1yBtn, rangeAllBtn], playerChartMode, playerChartRange);
                 updatePlayerAttributes();
                 renderPlayerInsights();
-                document.getElementById('playerInsights')?.classList.add('hidden');
                 if (typeof renderForecast === 'function') renderForecast();
                 if (refreshAchievement && typeof window.renderAchievements === 'function') window.renderAchievements();
                 return;
@@ -1605,24 +1622,26 @@
             const matched = value
                 ? playerNames.find(name => name.toLowerCase() === value.toLowerCase())
                 : '';
-            selectedPlayer = matched || '';
-            if (playerSearch && matched) playerSearch.value = matched;
+            if (!matched) {
+                if (playerSearch) playerSearch.value = selectedPlayer || '';
+                return;
+            }
+            selectedPlayer = matched;
+            if (playerSearch) playerSearch.value = matched;
             updatePlayer(true);
         }
 
         playerSearch.addEventListener('input', e => {
-            // Never keep showing the previous player's data while a new nickname is being typed.
+            // Typing is only search text. Keep the currently selected player locked
+            // until a different valid nickname is explicitly committed.
+            // This prevents the graph from disappearing/reverting while searching.
             const value = e.target.value.trim();
             const matched = value
                 ? playerNames.find(name => name.toLowerCase() === value.toLowerCase())
                 : '';
-            if (matched) {
-                selectedPlayer = matched;
-                e.target.value = matched;
-                updatePlayer(true);
-            } else {
-                selectedPlayer = '';
-                updatePlayer(true);
+            if (matched && matched !== selectedPlayer) {
+                // Do not switch on every keystroke; datalist selection/change or Enter commits it.
+                return;
             }
         });
         playerSearch.addEventListener('change', e => selectPlayerFromSearch(e.target.value));
@@ -1744,14 +1763,31 @@
             d.setDate(d.getDate() + offset*7);
             return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
         }
+        function renderForecastPlaceholderChart() {
+            const canvas = document.getElementById('forecastChart');
+            if (!canvas) return;
+            if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
+            const labelCount = Math.max(8, Math.min(20, dates.length || 12));
+            const labels = dates.slice(-labelCount);
+            const ctx = canvas.getContext('2d');
+            forecastChartInstance = new Chart(ctx, {
+                type:'line', data:{labels, datasets:[]},
+                options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{
+                    x:{ticks:{color:'#64748b',maxTicksLimit:10,maxRotation:45},grid:{color:'rgba(148,163,184,.08)'}},
+                    y:{beginAtZero:false,min:0,max:1,ticks:{display:false},grid:{color:'rgba(148,163,184,.12)'}}
+                }}
+            });
+        }
+
         function renderForecast() {
             const target = selectedPlayer;
             const horizon = forecastHorizon;
             let pairedAll;
 
-            // No real player selected: keep Forecast blank.
+            // No real player selected: keep metrics blank but preserve the chart grid,
+            // matching the empty Compare visualization state.
             if (!hasPlayerHistory(target)) {
-                if (forecastChartInstance) { forecastChartInstance.destroy(); forecastChartInstance = null; }
+                renderForecastPlaceholderChart();
                 if (forecastPlayerName) forecastPlayerName.textContent = '—';
                 document.getElementById('forecastLatest').textContent = '—';
                 document.getElementById('forecastProjected').textContent = '—';
@@ -1880,7 +1916,6 @@
             // Keep initial Player selection empty; never auto-select a real player.
             if (playerSearch) playerSearch.value = selectedPlayer;
             updatePlayer(false);
-            document.getElementById('playerInsights')?.classList.add('hidden');
             updateCompare();
             updateLeaderboard();
             renderClanScoreDistribution();
