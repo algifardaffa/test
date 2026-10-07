@@ -265,7 +265,7 @@
 <h2 class="text-xl font-bold text-white" id="clanChartTitle">Progress Over Time</h2>
 <div class="flex flex-wrap items-center gap-2">
 <div class="flex bg-slate-900/80 rounded-xl p-1 border border-slate-700/70">
-<button class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" id="clanValueModeBtn" type="button">Value</button>
+<button class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" id="clanValueModeBtn" type="button">Score</button>
 <button class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all" id="clanGrowthModeBtn" type="button">Growth</button>
 </div>
 <div class="flex bg-slate-900/80 rounded-xl p-1 border border-slate-700/70">
@@ -443,15 +443,15 @@
 </div>
 <div class="grid grid-cols-3 gap-4 text-center">
 <div>
-<span class="text-slate-400 text-xs font-medium block">Minimum Testaments</span>
+<span class="text-slate-400 text-xs font-medium block">Minimum Score</span>
 <span class="text-xl font-bold text-rose-400 mt-1 block" id="fluxStatMin">0.00</span>
 </div>
 <div>
-<span class="text-slate-400 text-xs font-medium block">Maximum Testaments</span>
+<span class="text-slate-400 text-xs font-medium block">Maximum Score</span>
 <span class="text-xl font-bold text-emerald-400 mt-1 block" id="fluxStatMax">+0.00</span>
 </div>
 <div>
-<span class="text-slate-400 text-xs font-medium block">Average Testaments</span>
+<span class="text-slate-400 text-xs font-medium block">Average Score</span>
 <span class="text-xl font-bold text-indigo-400 mt-1 block" id="fluxStatAvg">0.00</span>
 </div>
 </div>
@@ -479,7 +479,7 @@
 <div class="overflow-x-auto">
 <table class="w-full min-w-[900px] text-sm">
 <thead><tr class="border-b border-slate-700/70 text-slate-400">
-<th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="rank" type="button">Rank ↕</button></th><th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="name" type="button">Nickname ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="score" type="button">Score ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="lastIncrease" type="button">Latest Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="growth" type="button">Growth ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigIncrease" type="button">Big Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigDrop" type="button">Big Drop ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="consistency" type="button">Consistency ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="achievement" type="button">Achievement ↕</button></th>
+<th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="rank" type="button">Rank ↕</button></th><th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="name" type="button">Nickname ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="score" type="button">Score ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="lastIncrease" type="button">Last Gain ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="growth" type="button">Growth ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigIncrease" type="button">Big ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigDrop" type="button">Big Loss ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="consistency" type="button">Consistency ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="achievement" type="button">Achievement ↕</button></th>
 </tr></thead>
 <tbody id="leaderboardBody"></tbody>
 </table>
@@ -494,6 +494,8 @@
 <script>
         let dates = [];
         let rawPlayerData = {};
+        // Number of real score entries in the source CSV BEFORE cleansing/forward-fill.
+        let rawPlayerLmeCount = {};
         let playerNames = [];
         let selectedPlayer = '';
 
@@ -574,6 +576,7 @@
 
             dates = selectedColumns.map(x => x.date);
             rawPlayerData = {};
+            rawPlayerLmeCount = {};
 
             for (let r = 2; r < rows.length; r++) {
                 const name = String(rows[r]?.[playerCol] ?? '').trim();
@@ -582,11 +585,14 @@
                 const values = [];
                 let previous = null;
                 let hasEntered = false;
+                let rawLmeCount = 0;
                 for (const item of selectedColumns) {
                     const raw = String(rows[r]?.[item.col] ?? '').trim().replace(/,/g, '');
                     const numeric = raw === '' ? NaN : Number(raw);
 
                     if (Number.isFinite(numeric) && numeric !== 0) {
+                        // Count the source record BEFORE cleansing. Missing/blank cells are not LME.
+                        rawLmeCount++;
                         // The first real score marks the player's actual join/entry date.
                         hasEntered = true;
                         previous = numeric;
@@ -602,7 +608,10 @@
                 }
 
                 // Keep players only when at least one real score exists.
-                if (values.some(value => Number.isFinite(value))) rawPlayerData[name] = values;
+                if (values.some(value => Number.isFinite(value))) {
+                    rawPlayerData[name] = values;
+                    rawPlayerLmeCount[name] = rawLmeCount;
+                }
             }
             playerNames = Object.keys(rawPlayerData).filter(name => name.trim() !== '');
             clanRanksCache.clear();
@@ -704,14 +713,14 @@
         function getPlayerSeries(playerName) {
             const data = rawPlayerData[playerName];
             if (!Array.isArray(data)) {
-                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0 };
+                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0, rawLmeCount: 0 };
             }
 
             // Before first real score: null = player has not joined yet.
             // After first real score: loadCSVData has already forward-filled 0/blank values.
             const startIndex = data.findIndex(value => value !== null && Number.isFinite(Number(value)));
             if (startIndex < 0) {
-                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0 };
+                return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0, rawLmeCount: 0 };
             }
 
             // The current/last snapshot is ALWAYS the latest global snapshot.
@@ -725,7 +734,8 @@
                 dates: playerDates,
                 startIndex,
                 endIndex: latestIdx,
-                totalLme: playerData.filter(Number.isFinite).length
+                totalLme: rawPlayerLmeCount[playerName] ?? playerData.filter(Number.isFinite).length,
+                rawLmeCount: rawPlayerLmeCount[playerName] ?? playerData.filter(Number.isFinite).length
             };
         }
 
@@ -810,12 +820,16 @@
             const observedData = series.data.filter(value => Number.isFinite(Number(value))).map(Number);
             if (!observedData.length) return { name: playerName, latest: null, peak: null, avgGrowth: null, bigIncrease: null, bigDrop: null, lastIncrease: null, consistency: 0, rank: null, joinDuration: '-', totalLme: 0 };
 
-            // Growth and consistency are calculated from the latest 52 REAL snapshots.
+            // Growth and consistency still use the latest 52 REAL snapshots.
+            // Big and Big Loss, however, scan the FULL available history.
             // Pre-entry nulls are never counted.
             const analysisData = observedData.slice(-52);
+            const allChanges = [];
+            for (let i = 1; i < observedData.length; i++) allChanges.push(observedData[i] - observedData[i - 1]);
             const changes = [];
             for (let i = 1; i < analysisData.length; i++) changes.push(analysisData[i] - analysisData[i - 1]);
             const positiveChanges = changes.filter(x => x > 0);
+            const allPositiveChanges = allChanges.filter(x => x > 0);
             let consistency = 0;
             if (analysisData.length === 1) {
                 consistency = 100;
@@ -850,15 +864,15 @@
                 latest: observedData[observedData.length - 1],
                 peak: Math.max(...observedData),
                 avgGrowth: changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : null,
-                bigIncrease: positiveChanges.length ? Math.max(...positiveChanges) : 0,
-                bigDrop: changes.length ? Math.min(...changes) : 0,
+                bigIncrease: allPositiveChanges.length ? Math.max(...allPositiveChanges) : 0,
+                bigDrop: allChanges.length ? Math.min(...allChanges) : 0,
                 lastIncrease: changes.length ? changes[changes.length - 1] : null,
                 consistency,
                 joinDuration: series.dates.length ? formatDuration(series.dates[0], series.dates[series.dates.length - 1]) : '-',
                 rank: Number(getClanRanks()[playerName]) || null,
                 // LME = actual recorded snapshots from first real score onward.
                 // Pre-entry nulls are never counted.
-                totalLme: series.data.filter(value => Number.isFinite(Number(value))).length
+                totalLme: rawPlayerLmeCount[playerName] ?? series.data.filter(value => Number.isFinite(Number(value))).length
             };
         }
 
@@ -1104,7 +1118,7 @@
                     ['playerAttrBigIncrease', '↑', '—'], ['playerAttrBigDrop', '↓', '—'], ['playerAttrLastIncrease', '↻', '—'],
                     ['playerAttrUnwavering', '◉', '—'], ['playerAttrJoinDuration', '◷', '—'], ['playerAttrTotalLme', '●', '—']
                 ];
-                const labels = ['Rank', 'Peak', 'Average Growth', 'Big Increase', 'Big Drop', 'Last Increase', 'concistensy', 'Join Duration', 'Total LME'];
+                const labels = ['Rank', 'Peak', 'Growth', 'Big', 'Big Loss', 'Last Gain', 'Consistency', 'Join Duration', 'Total LME'];
                 const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
                 attrs.forEach(([id, icon, value], i) => {
                     const el = document.getElementById(id);
@@ -1127,7 +1141,7 @@
                 ['playerAttrJoinDuration', '◷', m.joinDuration],
                 ['playerAttrTotalLme', '●', m.totalLme.toLocaleString()]
             ];
-            const labels = ['Rank', 'Peak', 'Average Growth', 'Big Increase', 'Big Drop', 'Last Increase', 'concistensy', 'Join Duration', 'Total LME'];
+            const labels = ['Rank', 'Peak', 'Growth', 'Big', 'Big Loss', 'Last Gain', 'Consistency', 'Join Duration', 'Total LME'];
             const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
             attrs.forEach(([id, icon, value], i) => {
                 const iconColor = iconColors[i % iconColors.length];
@@ -1288,21 +1302,23 @@
             const sortedScores = [...currentScores].sort((a,b)=>a-b);
             const mean = currentScores.length ? currentScores.reduce((a,b)=>a+b,0)/currentScores.length : 0;
             const median = sortedScores.length ? (sortedScores.length%2 ? sortedScores[(sortedScores.length-1)/2] : (sortedScores[sortedScores.length/2-1]+sortedScores[sortedScores.length/2])/2) : 0;
-            // Clan growth metrics use the latest 26 snapshots (~6 months).
+            // Clan growth metrics use the latest 26 snapshots (~6 months),
+            // but Big and Big Loss scan the FULL available clan history.
             const growthTotals = totalsAll.slice(-26);
             const changes = growthTotals.slice(1).map((v,i) => v - growthTotals[i]);
-            const positive = changes.filter(v => v > 0);
+            const allChanges = totalsAll.slice(1).map((v,i) => v - totalsAll[i]);
+            const positive = allChanges.filter(v => v > 0);
             const consistency = null; // Clan consistency is displayed as Mean/Median here; player consistency uses the calibrated 52-snapshot formula.
             const metrics = {
                 activePlayer: currentScores.length, testaments: totalsAll.length ? totalsAll[totalsAll.length-1] : 0,
                 avgGrowth: changes.length ? changes.reduce((a,b)=>a+b,0)/changes.length : 0,
                 bigIncrease: positive.length ? Math.max(...positive) : 0,
-                bigDrop: changes.length ? Math.min(...changes) : 0,
+                bigDrop: allChanges.length ? Math.min(...allChanges) : 0,
                 lastIncrease: changes.length ? changes[changes.length-1] : 0,
                 mean, median, totalLme: dates.length
             };
             const ids = ['Rank','Peak','AvgGrowth','BigIncrease','BigDrop','LastIncrease','Unwavering','JoinDuration','TotalLme'];
-            const labels = ['Active Player','Testaments','Average Growth','Big Increase','Big Drop','Last Increase','Mean','Median','Total LME'];
+            const labels = ['Player','Score','Growth','Big Gain','Big Loss','Last Gain','Mean','Median','Total LME'];
             const icons = ['♟','◆','⤴','↑','↓','↻','μ','∼','●'];
             const values = [metrics.activePlayer.toLocaleString(), metrics.testaments.toLocaleString(), `${metrics.avgGrowth>=0?'+':''}${metrics.avgGrowth.toFixed(1)}`, `+${metrics.bigIncrease.toLocaleString()}`, metrics.bigDrop.toLocaleString(), `${metrics.lastIncrease>=0?'+':''}${metrics.lastIncrease.toLocaleString()}`, metrics.mean.toLocaleString(undefined,{maximumFractionDigits:1}), metrics.median.toLocaleString(undefined,{maximumFractionDigits:1}), metrics.totalLme.toLocaleString()];
             ids.forEach((id,i)=>{ const el=document.getElementById('clanAttr'+id); if(el) el.innerHTML=`<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${['#ef4444','#3b82f6','#eab308','#22c55e'][i%4]}">${icons[i]}</span></span><span class="text-xl font-bold text-white mt-1 block">${values[i]}</span></div>`; });
@@ -1325,7 +1341,7 @@
             [selectedMode,selectedRange].forEach(b=>{if(b){b.classList.remove(...inactive.split(' '));b.classList.add(...active.split(' '));}});
             const canvas=document.getElementById('clanChart');
             if (clanChartInstance) clanChartInstance.destroy();
-            clanChartInstance=new Chart(canvas.getContext('2d'),{type:'line',data:{labels:plotDates,datasets:[{label:clanChartMode==='damage'?'Total Clan Testaments':'Clan Testaments Growth',data:plotValues,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.14)',fill:true,borderWidth:3,tension:.25,pointRadius:plotValues.length>50?1:3,pointBackgroundColor:'#a78bfa'}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:'#94a3b8'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f8fafc',bodyColor:'#cbd5e1'}},scales:{x:{grid:{color:'rgba(51,65,85,.4)'},ticks:{color:'#64748b',maxTicksLimit:15,maxRotation:45}},y:{beginAtZero:clanChartMode==='growth',grid:{color:'rgba(51,65,85,.4)'},ticks:{color:'#64748b'}}}}});
+            clanChartInstance=new Chart(canvas.getContext('2d'),{type:'line',data:{labels:plotDates,datasets:[{label:clanChartMode==='damage'?'Total Clan Score':'Clan Score Growth',data:plotValues,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.14)',fill:true,borderWidth:3,tension:.25,pointRadius:plotValues.length>50?1:3,pointBackgroundColor:'#a78bfa'}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:'#94a3b8'}},tooltip:{backgroundColor:'#1e293b',titleColor:'#f8fafc',bodyColor:'#cbd5e1'}},scales:{x:{grid:{color:'rgba(51,65,85,.4)'},ticks:{color:'#64748b',maxTicksLimit:15,maxRotation:45}},y:{beginAtZero:clanChartMode==='growth',grid:{color:'rgba(51,65,85,.4)'},ticks:{color:'#64748b'}}}}});
         }
 
         function updateComparisonTable(players) {
@@ -1335,7 +1351,7 @@
             const uniquePlayers = [...new Set(players)].filter(name => name && (isClanCompare(name) || hasPlayerHistory(name)));
             if (!uniquePlayers.length) {
                 header.innerHTML = '<th class="text-left py-3 px-3 text-slate-400">Attribute</th><th class="text-right py-3 px-3 text-slate-500">Player 1</th><th class="text-right py-3 px-3 text-slate-500">Player 2</th><th class="text-right py-3 px-3 text-slate-500">Player 3</th>';
-                const emptyAttrs = ['Rank','Peak','Average Growth','Big Increase','Big Drop','Last Increase','Consistency','Join Duration','Total LME'];
+                const emptyAttrs = ['Rank','Peak','Growth','Big','Big Loss','Last Gain','Consistency','Join Duration','Total LME'];
                 body.innerHTML = emptyAttrs.map(label => `<tr class="border-b border-slate-800/70 last:border-0"><td class="py-3 px-3 text-slate-300">${label}</td><td class="py-3 px-3 text-right text-slate-600">—</td><td class="py-3 px-3 text-right text-slate-600">—</td><td class="py-3 px-3 text-right text-slate-600">—</td></tr>`).join('');
                 return;
             }
@@ -1344,10 +1360,10 @@
             const attrs = [
                 ['#', 'Rank', m => m.rank, 'rank'],
                 ['⌒', 'Peak', m => m.peak, 'number'],
-                ['⤴', 'Average Growth', m => m.avgGrowth, 'number'],
-                ['↑', 'Big Increase', m => m.bigIncrease, 'number'],
-                ['↓', 'Big Drop', m => m.bigDrop, 'number'],
-                ['↻', 'Last Increase', m => m.lastIncrease, 'number'],
+                ['⤴', 'Growth', m => m.avgGrowth, 'number'],
+                ['↑', 'Big', m => m.bigIncrease, 'number'],
+                ['↓', 'Big Loss', m => m.bigDrop, 'number'],
+                ['↻', 'Last Gain', m => m.lastIncrease, 'number'],
                 ['◉', 'Consistency', m => m.consistency, 'percent'],
                 ['◷', 'Join Duration', m => parseDurationToDays(m.joinDuration), 'duration'],
                 ['●', 'Total LME', m => m.totalLme, 'number']
@@ -1360,7 +1376,7 @@
                 const valid = vals.filter(v => typeof v === 'number' && !Number.isNaN(v));
                 const best = type === 'rank' ? Math.min(...valid) : Math.max(...valid);
                 const iconColor = iconColors[attrIndex % iconColors.length];
-                return `<tr class="border-b border-slate-800/70 last:border-0"><td class="py-3 px-3 text-white"><span class="inline-flex items-center gap-2"><span>${label}</span><span class="font-semibold" style="color:${iconColor}">${icon}</span></span></td>${metrics.map((m, i) => { const raw = vals[i]; const isBest = typeof raw === 'number' && !Number.isNaN(raw) && raw === best; let display = type === 'duration' ? m.joinDuration : type === 'percent' ? `${raw.toFixed(1)}%` : raw === null || raw === undefined || Number.isNaN(raw) ? '-' : type === 'number' && label === 'Average Growth' ? `${raw >= 0 ? '+' : ''}${raw.toFixed(1)}` : ['Big Increase', 'Last Increase'].includes(label) ? `${raw >= 0 ? '+' : ''}${Number(raw).toLocaleString()}` : Number(raw).toLocaleString(); if (label === 'Rank') display = raw === null || raw === undefined || Number.isNaN(raw) ? '-' : `#${Number(raw).toFixed(1).replace(/\.0$/, '')}`; return `<td class="py-3 px-3 text-right ${isBest ? 'text-white' : 'text-slate-300'} font-semibold whitespace-nowrap">${display}</td>`; }).join('')}</tr>`;
+                return `<tr class="border-b border-slate-800/70 last:border-0"><td class="py-3 px-3 text-white"><span class="inline-flex items-center gap-2"><span>${label}</span><span class="font-semibold" style="color:${iconColor}">${icon}</span></span></td>${metrics.map((m, i) => { const raw = vals[i]; const isBest = typeof raw === 'number' && !Number.isNaN(raw) && raw === best; let display = type === 'duration' ? m.joinDuration : type === 'percent' ? `${raw.toFixed(1)}%` : raw === null || raw === undefined || Number.isNaN(raw) ? '-' : type === 'number' && label === 'Growth' ? `${raw >= 0 ? '+' : ''}${raw.toFixed(1)}` : ['Big', 'Last Gain'].includes(label) ? `${raw >= 0 ? '+' : ''}${Number(raw).toLocaleString()}` : Number(raw).toLocaleString(); if (label === 'Rank') display = raw === null || raw === undefined || Number.isNaN(raw) ? '-' : `#${Number(raw).toFixed(1).replace(/\.0$/, '')}`; return `<td class="py-3 px-3 text-right ${isBest ? 'text-white' : 'text-slate-300'} font-semibold whitespace-nowrap">${display}</td>`; }).join('')}</tr>`;
             }).join('');
         }
 
@@ -1485,7 +1501,7 @@
                 .filter(name => name && (isClanCompare(name) || hasPlayerHistory(name)))
                 .map(getComparisonMetrics);
             const axes = [
-                { label: 'Latest Increase', key: 'lastIncrease', robust: true },
+                { label: 'Last Gain', key: 'lastIncrease', robust: true },
                 { label: 'Growth', key: 'avgGrowth', robust: true },
                 { label: 'Score', key: 'latest', robust: true },
                 { label: 'Peak', key: 'peak', robust: true },
@@ -1493,7 +1509,7 @@
             ];
             // Normalize against every available clan member, not just selected players.
             // All five axes now use the same IQR outlier treatment as Leaderboard's
-            // Latest Increase scaling, so a single extreme player cannot compress
+            // Last Gain scaling, so a single extreme player cannot compress
             // the useful range of the Star Comparison radar.
             const clanMetrics = playerNames.filter(name => hasPlayerHistory(name)).map(getComparisonMetrics);
             const ranges = Object.fromEntries(axes.map(axis => {
@@ -1597,7 +1613,7 @@
                         : key === 'consistency'
                         ? (consistencyMax === consistencyMin ? 100 : Math.max(0, Math.min(100, (value - consistencyMin) / (consistencyMax - consistencyMin) * 100)))
                         : key === 'achievement'
-                            ? Math.max(0, Math.min(100, (value - achievementMin) / (achievementMax - achievementMin) * 100))
+                            ? Math.max(0, Math.min(100, Math.pow(Math.max(0, Math.min(1, (value - achievementMin) / (achievementMax - achievementMin))), 2) * 100))
                             : Math.max(0, Math.min(100, Math.abs(value) / maxima[key] * 100));
                 return `<td class="py-3 px-3"><div class="leaderboard-metric"><span class="leaderboard-metric-value ${valueClass}">${formatter(value)}</span><span class="leaderboard-bar" aria-label="${label} bar"><span class="leaderboard-bar-fill ${fillClass}" style="width:${width}%;${fillClass ? '' : `background-color:${color};`}opacity:1;filter:none"></span></span></div></td>`;
             };
@@ -1606,12 +1622,12 @@
                 return `<tr style="${rowBg}" class="border-b border-slate-800/70 last:border-0 hover:brightness-110 transition-colors">
                     <td class="py-3 px-3 text-slate-300 font-semibold tabular-nums whitespace-nowrap">${player.rank || '-'}</td><td class="py-3 px-3 text-slate-100 font-semibold whitespace-nowrap">${player.name} <span class="ml-1 text-xs font-bold ${player.rankDelta > 0 ? 'text-emerald-400' : player.rankDelta < 0 ? 'text-rose-400' : 'text-slate-500'}">${player.rankDelta > 0 ? `↑${player.rankDelta}` : player.rankDelta < 0 ? `↓${Math.abs(player.rankDelta)}` : '−'}</span></td>
                     ${metricCell(player, 'score', 'Score', '#ec4899', fmt, 'text-pink-400 font-bold')}
-                    ${metricCell(player, 'lastIncrease', 'Latest Increase', '#a855f7', change, 'text-purple-400 font-semibold')}
+                    ${metricCell(player, 'lastIncrease', 'Last Gain', '#a855f7', change, 'text-purple-400 font-semibold')}
                     ${metricCell(player, 'growth', 'Growth', '#1d4ed8', change, 'text-blue-700 font-semibold')}
-                    ${metricCell(player, 'bigIncrease', 'Big Increase', '#60a5fa', change, 'text-blue-400 font-semibold')}
-                    ${metricCell(player, 'bigDrop', 'Big Drop', '#4ade80', change, 'text-green-400 font-semibold')}
+                    ${metricCell(player, 'bigIncrease', 'Big', '#60a5fa', change, 'text-blue-400 font-semibold')}
+                    ${metricCell(player, 'bigDrop', 'Big Loss', '#4ade80', change, 'text-green-400 font-semibold')}
                     ${metricCell(player, 'consistency', 'Consistency', '#fde047', v => `${fmt(v)}%`, 'leaderboard-consistency-value font-semibold')}
-                    <td class="py-3 px-3"><div class="leaderboard-metric"><span class="leaderboard-metric-value leaderboard-achievement-value font-semibold">${player.achievement}</span><span class="leaderboard-bar" aria-label="Achievement progress bar"><span class="leaderboard-bar-fill leaderboard-achievement-fill" style="width:${Math.max(0, Math.min(100, (player.achievement - achievementMin) / (achievementMax - achievementMin) * 100))}%;opacity:1;filter:none"></span></span></div></td></tr>`;
+                    <td class="py-3 px-3"><div class="leaderboard-metric"><span class="leaderboard-metric-value leaderboard-achievement-value font-semibold">${player.achievement}</span><span class="leaderboard-bar" aria-label="Achievement progress bar"><span class="leaderboard-bar-fill leaderboard-achievement-fill" style="width:${Math.max(0, Math.min(100, Math.pow(Math.max(0, Math.min(1, (player.achievement - achievementMin) / (achievementMax - achievementMin))), 2) * 100))}%;opacity:1;filter:none"></span></span></div></td></tr>`;
             }).join('');
             document.querySelectorAll('.leaderboard-page-btn').forEach(btn => btn.classList.toggle('active', Number(btn.dataset.page) === page));
         }
