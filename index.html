@@ -1471,13 +1471,15 @@
                 .map(getComparisonMetrics);
             const axes = [
                 { label: 'Latest Increase', key: 'lastIncrease', robust: true },
-                { label: 'Growth', key: 'avgGrowth' },
-                { label: 'Score', key: 'latest' },
-                { label: 'Peak', key: 'peak' },
-                { label: 'Consistency', key: 'consistency' }
+                { label: 'Growth', key: 'avgGrowth', robust: true },
+                { label: 'Score', key: 'latest', robust: true },
+                { label: 'Peak', key: 'peak', robust: true },
+                { label: 'Consistency', key: 'consistency', robust: true }
             ];
             // Normalize against every available clan member, not just selected players.
-            // Latest Increase uses the exact same IQR outlier treatment as Leaderboard.
+            // All five axes now use the same IQR outlier treatment as Leaderboard's
+            // Latest Increase scaling, so a single extreme player cannot compress
+            // the useful range of the Star Comparison radar.
             const clanMetrics = playerNames.filter(name => hasPlayerHistory(name)).map(getComparisonMetrics);
             const ranges = Object.fromEntries(axes.map(axis => {
                 const values = clanMetrics.map(m => Number(m[axis.key])).filter(Number.isFinite);
