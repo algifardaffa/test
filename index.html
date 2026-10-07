@@ -496,6 +496,9 @@
         let rawPlayerData = {};
         // Number of real score entries in the source CSV BEFORE cleansing/forward-fill.
         let rawPlayerLmeCount = {};
+        // Raw source-of-truth for Clan statistics: null means the player did NOT submit a score for that snapshot.
+        // This is intentionally separate from rawPlayerData, which is cleaned/forward-filled for Player analytics.
+        let rawPlayerWeeklyData = {};
         let playerNames = [];
         let selectedPlayer = '';
 
@@ -577,12 +580,14 @@
             dates = selectedColumns.map(x => x.date);
             rawPlayerData = {};
             rawPlayerLmeCount = {};
+            rawPlayerWeeklyData = {};
 
             for (let r = 2; r < rows.length; r++) {
                 const name = String(rows[r]?.[playerCol] ?? '').trim();
                 if (!name) continue; // never create the old empty-name/dummy player
 
                 const values = [];
+                const rawValues = [];
                 let previous = null;
                 let hasEntered = false;
                 let rawLmeCount = 0;
@@ -591,6 +596,7 @@
                     const numeric = raw === '' ? NaN : Number(raw);
 
                     if (Number.isFinite(numeric) && numeric !== 0) {
+                        rawValues.push(numeric);
                         // Count the source record BEFORE cleansing. Missing/blank cells are not LME.
                         rawLmeCount++;
                         // The first real score marks the player's actual join/entry date.
@@ -598,9 +604,11 @@
                         previous = numeric;
                         values.push(numeric);
                     } else if (hasEntered) {
+                        rawValues.push(null);
                         // Only after the player has entered: 0/blank inherits the previous score.
                         values.push(previous);
                     } else {
+                        rawValues.push(null);
                         // Before the first real score: keep it null so the player does not
                         // appear to have participated in earlier snapshots.
                         values.push(null);
@@ -610,6 +618,7 @@
                 // Keep players only when at least one real score exists.
                 if (values.some(value => Number.isFinite(value))) {
                     rawPlayerData[name] = values;
+                    rawPlayerWeeklyData[name] = rawValues;
                     rawPlayerLmeCount[name] = rawLmeCount;
                 }
             }
@@ -767,14 +776,20 @@
             return remainingDays > 0 ? `${months} mo. ${remainingDays} d.` : `${months} mo.`;
         }
 
+        // CLAN SOURCE OF TRUTH: use only scores actually submitted in the CSV.
+        // Missing/blank weekly cells are NOT forward-filled here.
+        function getClanRawValue(playerName, index) {
+            const values = rawPlayerWeeklyData[playerName];
+            if (!Array.isArray(values) || index < 0 || index >= values.length) return NaN;
+            const value = Number(values[index]);
+            return Number.isFinite(value) ? value : NaN;
+        }
+
         function getClanAverageSeries() {
             const values = dates.map((_, index) => {
-                const scores = playerNames.filter(name => hasPlayerHistory(name))
-                    .map(name => {
-                        const series = getPlayerSeries(name);
-                        const j = index - series.startIndex;
-                        return j >= 0 && j < series.data.length ? Number(series.data[j]) : NaN;
-                    }).filter(Number.isFinite);
+                const scores = playerNames
+                    .map(name => getClanRawValue(name, index))
+                    .filter(Number.isFinite);
                 return scores.length ? scores.reduce((a,b) => a + b, 0) / scores.length : null;
             });
             return { dates: dates.slice(), data: values };
@@ -886,12 +901,7 @@
         function getClanRanksAtIndex(index) {
             if (clanRanksAtIndexCache.has(index)) return clanRanksAtIndexCache.get(index);
             const sorted = playerNames
-                .filter(name => hasPlayerHistory(name))
-                .map(name => {
-                    const series = getPlayerSeries(name);
-                    const j = index - series.startIndex;
-                    return { name, latest: j >= 0 && j < series.data.length ? Number(series.data[j]) : NaN };
-                })
+                .map(name => ({ name, latest: getClanRawValue(name, index) }))
                 .filter(item => Number.isFinite(item.latest))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
@@ -907,11 +917,10 @@
         }
 
         function getClanRanks() {
-            const cacheKey = `${dates.length}|${playerNames.length}`;
+            const cacheKey = `${dates.length}|${playerNames.length}|raw`;
             if (clanRanksCache.has(cacheKey)) return clanRanksCache.get(cacheKey);
             const sorted = playerNames
-                .filter(name => hasPlayerHistory(name))
-                .map(name => ({ name, latest: getPlayerLatestValue(name) }))
+                .map(name => ({ name, latest: getClanRawValue(name, dates.length - 1) }))
                 .filter(item => Number.isFinite(item.latest))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
@@ -1280,47 +1289,83 @@
         }
 
         function getClanAggregateSeries() {
-            const totals = dates.map((_, dateIndex) => playerNames.reduce((sum, name) => {
-                const series = getPlayerSeries(name);
-                const localIndex = dateIndex - series.startIndex;
-                return sum + (localIndex >= 0 && localIndex < series.data.length ? Number(series.data[localIndex]) || 0 : 0);
+            // Sum ONLY actual submissions. A missing score contributes nothing;
+            // the player's cleaned/forward-filled value is deliberately ignored.
+            return dates.map((_, dateIndex) => playerNames.reduce((sum, name) => {
+                const value = getClanRawValue(name, dateIndex);
+                return Number.isFinite(value) ? sum + value : sum;
             }, 0));
-            return totals;
+        }
+
+        function getClanActiveCountAt(index) {
+            return playerNames.reduce((count, name) => count + (Number.isFinite(getClanRawValue(name, index)) ? 1 : 0), 0);
+        }
+
+        function getClanTotalRawLme() {
+            return playerNames.reduce((sum, name) => sum + (rawPlayerLmeCount[name] || 0), 0);
+        }
+
+        function renderClanInsights() {
+            const section=document.getElementById('clanInsights'), list=document.getElementById('clanInsightsList');
+            if(!section||!list) return;
+            const names=playerNames.filter(name=>String(name).trim()!=='');
+            if(!names.length){section.classList.add('hidden');list.innerHTML='';return;}
+
+            const latestIndex = dates.length - 1;
+            const previousIndex = latestIndex - 1;
+            const latestScores = names.map(name=>getClanRawValue(name, latestIndex)).filter(Number.isFinite);
+            const previousScores = names.map(name=>getClanRawValue(name, previousIndex)).filter(Number.isFinite);
+            const mean = latestScores.length ? latestScores.reduce((a,b)=>a+b,0)/latestScores.length : 0;
+            const weeklyTotal = getClanAggregateSeries();
+            const latestTotal = weeklyTotal[latestIndex] || 0;
+            const previousTotal = previousIndex >= 0 ? (weeklyTotal[previousIndex] || 0) : 0;
+            const weeklyDelta = latestTotal - previousTotal;
+            const ranks = getClanRanks();
+            const previousRanks = previousIndex >= 0 ? getClanRanksAtIndex(previousIndex) : {};
+            const rankUp = names.filter(n=>Number.isFinite(ranks[n]) && Number.isFinite(previousRanks[n]) && previousRanks[n] > ranks[n]).length;
+            const rankDown = names.filter(n=>Number.isFinite(ranks[n]) && Number.isFinite(previousRanks[n]) && previousRanks[n] < ranks[n]).length;
+            const improving = names.filter(n=>{const a=getClanRawValue(n,latestIndex),b=getClanRawValue(n,previousIndex);return Number.isFinite(a)&&Number.isFinite(b)&&a>b;}).length;
+            const above = latestScores.filter(v=>v>mean).length;
+            const cards=[
+                ['Clan Momentum','↗',`Clan points ${weeklyDelta>=0?'increased':'decreased'} by ${weeklyDelta>=0?'+':''}${weeklyDelta.toLocaleString()} vs last week. Only submitted scores are included.`,weeklyDelta>0?'positive':weeklyDelta<0?'negative':'neutral'],
+                ['Rank Movement','↕',`${rankUp} player${rankUp===1?'':'s'} moved up and ${rankDown} moved down among players who submitted scores in both snapshots.`,rankUp>rankDown?'positive':rankDown>rankUp?'negative':'neutral'],
+                ['Personal Records','🏆',`${improving} of ${latestScores.length} players with scores in both snapshots increased their score this week.`,improving>latestScores.length/2?'positive':improving?'neutral':'negative'],
+                ['Clan Gap','↔',`${above} of ${latestScores.length} players who submitted this week are above the current clan average; the remaining ${latestScores.length-above} are at or below it.`,above>latestScores.length/2?'positive':'neutral']
+            ];
+            const colors={positive:'border-emerald-500/30 bg-emerald-500/5',negative:'border-rose-500/30 bg-rose-500/5',neutral:'border-slate-600/60 bg-slate-900/40'};
+            list.innerHTML=cards.map(([title,icon,desc,status])=>`<div class="rounded-xl border p-3 ${colors[status]}"><div class="flex items-center gap-2 text-xs font-bold text-white"><span>${icon}</span><span>${title}</span></div><p class="text-xs text-slate-300 mt-1.5 leading-relaxed">${desc}</p></div>`).join('');
+            section.classList.remove('hidden');
         }
 
         function updateClan() {
             renderClanInsights();
-            const validNames = playerNames.filter(name => String(name).trim() !== '');
             const totalsAll = getClanAggregateSeries();
             const changesAll = totalsAll.map((v, i) => i ? v - totalsAll[i - 1] : 0);
             const lastIndex = dates.length - 1;
-            const currentScores = validNames.map(name => {
-                const series = getPlayerSeries(name);
-                const idx = lastIndex - series.startIndex;
-                return idx >= 0 && idx < series.data.length ? Number(series.data[idx]) : null;
-            }).filter(v => Number.isFinite(v));
+            const currentScores = playerNames.map(name => getClanRawValue(name, lastIndex)).filter(Number.isFinite);
             const sortedScores = [...currentScores].sort((a,b)=>a-b);
             const mean = currentScores.length ? currentScores.reduce((a,b)=>a+b,0)/currentScores.length : 0;
             const median = sortedScores.length ? (sortedScores.length%2 ? sortedScores[(sortedScores.length-1)/2] : (sortedScores[sortedScores.length/2-1]+sortedScores[sortedScores.length/2])/2) : 0;
-            // Clan growth metrics use the latest 26 snapshots (~6 months),
-            // but Big and Big Loss scan the FULL available clan history.
+            // Clan growth metrics use the latest 26 RAW snapshots (~6 months).
+            // Big Gain / Big Loss scan the FULL RAW clan history. Missing submissions never become points.
             const growthTotals = totalsAll.slice(-26);
             const changes = growthTotals.slice(1).map((v,i) => v - growthTotals[i]);
             const allChanges = totalsAll.slice(1).map((v,i) => v - totalsAll[i]);
             const positive = allChanges.filter(v => v > 0);
-            const consistency = null; // Clan consistency is displayed as Mean/Median here; player consistency uses the calibrated 52-snapshot formula.
             const metrics = {
-                activePlayer: currentScores.length, testaments: totalsAll.length ? totalsAll[totalsAll.length-1] : 0,
+                activePlayer: currentScores.length,
+                testaments: totalsAll.length ? totalsAll[totalsAll.length-1] : 0,
                 avgGrowth: changes.length ? changes.reduce((a,b)=>a+b,0)/changes.length : 0,
                 bigIncrease: positive.length ? Math.max(...positive) : 0,
                 bigDrop: allChanges.length ? Math.min(...allChanges) : 0,
                 lastIncrease: changes.length ? changes[changes.length-1] : 0,
-                mean, median, totalLme: dates.length
+                mean, median,
+                totalLme: getClanTotalRawLme()
             };
             const ids = ['Rank','Peak','AvgGrowth','BigIncrease','BigDrop','LastIncrease','Unwavering','JoinDuration','TotalLme'];
             const labels = ['Player','Score','Growth','Big Gain','Big Loss','Last Gain','Mean','Median','Total LME'];
             const icons = ['♟','◆','⤴','↑','↓','↻','μ','∼','●'];
-            const values = [metrics.activePlayer.toLocaleString(), metrics.testaments.toLocaleString(), `${metrics.avgGrowth>=0?'+':''}${metrics.avgGrowth.toFixed(1)}`, `+${metrics.bigIncrease.toLocaleString()}`, metrics.bigDrop.toLocaleString(), `${metrics.lastIncrease>=0?'+':''}${metrics.lastIncrease.toLocaleString()}`, metrics.mean.toLocaleString(undefined,{maximumFractionDigits:1}), metrics.median.toLocaleString(undefined,{maximumFractionDigits:1}), metrics.totalLme.toLocaleString()];
+            const values = [metrics.activePlayer.toLocaleString(), metrics.testaments.toLocaleString(), `${metrics.avgGrowth>=0?'+':''}${metrics.avgGrowth.toFixed(1)}`, `+${metrics.bigIncrease.toLocaleString()}`, metrics.bigDrop.toLocaleString(), `${metrics.lastIncrease>=0?'+':''}${metrics.lastIncrease.toLocaleString()}`, metrics.mean.toLocaleString(undefined,{maximumFractionDigits:0}), metrics.median.toLocaleString(undefined,{maximumFractionDigits:0}), metrics.totalLme.toLocaleString()];
             ids.forEach((id,i)=>{ const el=document.getElementById('clanAttr'+id); if(el) el.innerHTML=`<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${['#ef4444','#3b82f6','#eab308','#22c55e'][i%4]}">${icons[i]}</span></span><span class="text-xl font-bold text-white mt-1 block">${values[i]}</span></div>`; });
             const totals = clanChartMode === 'damage' ? totalsAll : changesAll;
             const rangeDays = clanChartRange === '3m' ? 92 : clanChartRange === '1y' ? 365 : Infinity;
@@ -1376,7 +1421,7 @@
                 const valid = vals.filter(v => typeof v === 'number' && !Number.isNaN(v));
                 const best = type === 'rank' ? Math.min(...valid) : Math.max(...valid);
                 const iconColor = iconColors[attrIndex % iconColors.length];
-                return `<tr class="border-b border-slate-800/70 last:border-0"><td class="py-3 px-3 text-white"><span class="inline-flex items-center gap-2"><span>${label}</span><span class="font-semibold" style="color:${iconColor}">${icon}</span></span></td>${metrics.map((m, i) => { const raw = vals[i]; const isBest = typeof raw === 'number' && !Number.isNaN(raw) && raw === best; const isClanAverage = isClanCompare(m.name); let display = type === 'duration' ? m.joinDuration : type === 'percent' ? `${raw.toFixed(1)}%` : raw === null || raw === undefined || Number.isNaN(raw) ? '-' : type === 'number' && label === 'Growth' ? `${raw >= 0 ? '+' : ''}${raw.toFixed(1)}` : ['Big Gain', 'Last Gain'].includes(label) ? `${raw >= 0 ? '+' : ''}${Number(raw).toLocaleString()}` : Number(raw).toLocaleString(); if (label === 'Rank') display = raw === null || raw === undefined || Number.isNaN(raw) ? '-' : `#${isClanAverage ? Math.round(Number(raw)) : Number(raw).toFixed(1).replace(/\.0$/, '')}`; if (isClanAverage && type === 'number' && label !== 'Growth' && raw !== null && raw !== undefined && !Number.isNaN(raw)) display = ['Big Gain', 'Last Gain'].includes(label) ? `${raw >= 0 ? '+' : ''}${Math.round(Number(raw)).toLocaleString()}` : Math.round(Number(raw)).toLocaleString(); return `<td class="py-3 px-3 text-right ${isBest ? 'text-white' : 'text-slate-300'} font-semibold whitespace-nowrap">${display}</td>`; }).join('')}</tr>`;
+                return `<tr class="border-b border-slate-800/70 last:border-0"><td class="py-3 px-3 text-white"><span class="inline-flex items-center gap-2"><span>${label}</span><span class="font-semibold" style="color:${iconColor}">${icon}</span></span></td>${metrics.map((m, i) => { const raw = vals[i]; const isBest = typeof raw === 'number' && !Number.isNaN(raw) && raw === best; const isClanAverage = isClanCompare(m.name) || m.name === CLAN_COMPARE_LABEL; let display = type === 'duration' ? m.joinDuration : type === 'percent' ? `${raw.toFixed(1)}%` : raw === null || raw === undefined || Number.isNaN(raw) ? '-' : type === 'number' && label === 'Growth' ? `${raw >= 0 ? '+' : ''}${raw.toFixed(1)}` : ['Big Gain', 'Last Gain'].includes(label) ? `${raw >= 0 ? '+' : ''}${Number(raw).toLocaleString()}` : Number(raw).toLocaleString(); if (label === 'Rank') display = raw === null || raw === undefined || Number.isNaN(raw) ? '-' : `#${isClanAverage ? Math.round(Number(raw)) : Number(raw).toFixed(1).replace(/\.0$/, '')}`; if (isClanAverage && type === 'number' && label !== 'Growth' && raw !== null && raw !== undefined && !Number.isNaN(raw)) display = ['Big Gain', 'Last Gain'].includes(label) ? `${raw >= 0 ? '+' : ''}${Math.round(Number(raw)).toLocaleString()}` : Math.round(Number(raw)).toLocaleString(); return `<td class="py-3 px-3 text-right ${isBest ? 'text-white' : 'text-slate-300'} font-semibold whitespace-nowrap">${display}</td>`; }).join('')}</tr>`;
             }).join('');
         }
 
@@ -1624,7 +1669,7 @@
                     ${metricCell(player, 'score', 'Score', '#ec4899', fmt, 'text-pink-400 font-bold')}
                     ${metricCell(player, 'lastIncrease', 'Last Gain', '#a855f7', change, 'text-purple-400 font-semibold')}
                     ${metricCell(player, 'growth', 'Growth', '#1d4ed8', change, 'text-blue-700 font-semibold')}
-                    ${metricCell(player, 'bigIncrease', 'Big', '#60a5fa', change, 'text-blue-400 font-semibold')}
+                    ${metricCell(player, 'bigIncrease', 'Big Gain', '#60a5fa', change, 'text-blue-400 font-semibold')}
                     ${metricCell(player, 'bigDrop', 'Big Loss', '#4ade80', change, 'text-green-400 font-semibold')}
                     ${metricCell(player, 'consistency', 'Consistency', '#fde047', v => `${fmt(v)}%`, 'leaderboard-consistency-value font-semibold')}
                     <td class="py-3 px-3"><div class="leaderboard-metric"><span class="leaderboard-metric-value leaderboard-achievement-value font-semibold">${player.achievement}</span><span class="leaderboard-bar" aria-label="Achievement progress bar"><span class="leaderboard-bar-fill leaderboard-achievement-fill" style="width:${Math.max(0, Math.min(100, Math.pow(Math.max(0, Math.min(1, (player.achievement - achievementMin) / (achievementMax - achievementMin))), 2) * 100))}%;opacity:1;filter:none"></span></span></div></td></tr>`;
@@ -1973,7 +2018,7 @@
         function renderClanScoreDistribution(){
             const canvas = document.getElementById('clanScoreDistributionChart');
             if(!canvas) return;
-            const latestScores = playerNames.map(name => getPlayerLatestValue(name)).filter(Number.isFinite);
+            const latestScores = playerNames.map(name => getClanRawValue(name, dates.length - 1)).filter(Number.isFinite);
             const bins = [0,0,0,0,0,0];
             latestScores.forEach(score=>{
                 if(score < 500) bins[0]++; else if(score < 1000) bins[1]++; else if(score < 1500) bins[2]++; else if(score < 2000) bins[3]++; else if(score < 2500) bins[4]++; else bins[5]++;
