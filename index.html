@@ -642,18 +642,22 @@
 
             // Before first real score: null = player has not joined yet.
             // After first real score: loadCSVData has already forward-filled 0/blank values.
-            const startIndex = data.findIndex(value => Number.isFinite(Number(value)));
+            const startIndex = data.findIndex(value => value !== null && Number.isFinite(Number(value)));
             if (startIndex < 0) {
                 return { data: [], dates: [], startIndex: dates.length, endIndex: -1, totalLme: 0 };
             }
 
-            const playerData = data.slice(startIndex).map(Number);
-            const playerDates = dates.slice(startIndex, startIndex + playerData.length);
+            // The current/last snapshot is ALWAYS the latest global snapshot.
+            // Keep the global index explicit so Player metrics and charts end at
+            // the real last CSV date (currently 6/10/2026).
+            const latestIdx = dates.length - 1;
+            const playerData = data.slice(startIndex, latestIdx + 1).map(Number);
+            const playerDates = dates.slice(startIndex, latestIdx + 1);
             return {
                 data: playerData,
                 dates: playerDates,
                 startIndex,
-                endIndex: startIndex + playerData.length - 1,
+                endIndex: latestIdx,
                 totalLme: playerData.filter(Number.isFinite).length
             };
         }
@@ -664,7 +668,11 @@
 
         function getPlayerLatestValue(playerName) {
             const series = getPlayerSeries(playerName);
-            return series.totalLme ? series.data[series.data.length - 1] : NaN;
+            const latestIdx = dates.length - 1;
+            const localIndex = latestIdx - series.startIndex;
+            return series.totalLme && localIndex >= 0 && localIndex < series.data.length
+                ? Number(series.data[localIndex])
+                : NaN;
         }
 
         function parseDateDMY(dateString) {
