@@ -1138,7 +1138,7 @@
             if (!hasPlayerHistory(selectedPlayer)) {
                 const attrs = [
                     ['playerAttrRank', '#', '—'], ['playerAttrPeak', '⌒', '—'], ['playerAttrAvgGrowth', '⤴', '—'],
-                    ['playerAttrBigIncrease', 'Big Gain ↑', '—'], ['playerAttrBigDrop', '↓', '—'], ['playerAttrLastIncrease', '↻', '—'],
+                    ['playerAttrBigIncrease', '↑', '—'], ['playerAttrBigDrop', '↓', '—'], ['playerAttrLastIncrease', '↻', '—'],
                     ['playerAttrUnwavering', '◉', '—'], ['playerAttrJoinDuration', '◷', '—'], ['playerAttrTotalLme', '●', '—']
                 ];
                 const labels = ['Rank', 'Peak', 'Growth', 'Big Gain', 'Big Loss', 'Last Gain', 'Consistency', 'Join Duration', 'Total LME'];
@@ -1157,7 +1157,7 @@
                 ['playerAttrRank', '#', `#${ranks[selectedPlayer] ?? '-'}`],
                 ['playerAttrPeak', '⌒', m.peak?.toLocaleString() ?? '-'],
                 ['playerAttrAvgGrowth', '⤴', m.avgGrowth === null ? '-' : `${m.avgGrowth >= 0 ? '+' : ''}${m.avgGrowth.toFixed(1)}`],
-                ['playerAttrBigIncrease', 'Big Gain ↑', `+${m.bigIncrease?.toLocaleString() ?? '-'}`],
+                ['playerAttrBigIncrease', '↑', `+${m.bigIncrease?.toLocaleString() ?? '-'}`],
                 ['playerAttrBigDrop', '↓', m.bigDrop === null ? '-' : m.bigDrop.toLocaleString()],
                 ['playerAttrLastIncrease', '↻', m.lastIncrease === null ? '-' : `${m.lastIncrease >= 0 ? '+' : ''}${m.lastIncrease.toLocaleString()}`],
                 ['playerAttrUnwavering', '◉', `${m.consistency.toFixed(1)}%`],
@@ -1168,7 +1168,7 @@
             const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
             attrs.forEach(([id, icon, value], i) => {
                 const iconColor = iconColors[i % iconColors.length];
-                document.getElementById(id).innerHTML = `<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${id === 'playerAttrBigIncrease' ? '#ffffff' : iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
+                document.getElementById(id).innerHTML = `<div><span class="${id === 'playerAttrBigIncrease' ? 'text-white' : 'text-slate-400'} text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${id === 'playerAttrBigIncrease' ? '#22c55e' : iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
             });
         }
 
