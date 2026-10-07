@@ -902,7 +902,13 @@
         function getClanRanksAtIndex(index) {
             if (clanRanksAtIndexCache.has(index)) return clanRanksAtIndexCache.get(index);
             const sorted = playerNames
-                .map(name => ({ name, latest: getPlayerSeries(name).data[index] }))
+                .filter(name => hasPlayerHistory(name))
+                .map(name => {
+                    const series = getPlayerSeries(name);
+                    const localIndex = index - series.startIndex;
+                    const score = localIndex >= 0 && localIndex < series.data.length ? Number(series.data[localIndex]) : NaN;
+                    return { name, latest: score };
+                })
                 .filter(item => Number.isFinite(item.latest))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
@@ -918,10 +924,17 @@
         }
 
         function getClanRanks() {
-            const cacheKey = `${dates.length}|${playerNames.length}|raw`;
+            const cacheKey = `${dates.length}|${playerNames.length}|clean`;
             if (clanRanksCache.has(cacheKey)) return clanRanksCache.get(cacheKey);
+            const latestIndex = dates.length - 1;
             const sorted = playerNames
-                .map(name => ({ name, latest: getPlayerSeries(name).data[dates.length - 1] }))
+                .filter(name => hasPlayerHistory(name))
+                .map(name => {
+                    const series = getPlayerSeries(name);
+                    const localIndex = latestIndex - series.startIndex;
+                    const score = localIndex >= 0 && localIndex < series.data.length ? Number(series.data[localIndex]) : NaN;
+                    return { name, latest: score };
+                })
                 .filter(item => Number.isFinite(item.latest))
                 .sort((a, b) => b.latest - a.latest);
             const ranks = {};
@@ -1155,7 +1168,7 @@
             const iconColors = ['#ef4444', '#3b82f6', '#eab308', '#22c55e'];
             attrs.forEach(([id, icon, value], i) => {
                 const iconColor = iconColors[i % iconColors.length];
-                document.getElementById(id).innerHTML = `<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
+                document.getElementById(id).innerHTML = `<div><span class="text-slate-400 text-xs font-medium">${labels[i]} <span class="font-semibold" style="color:${id === 'playerAttrBigIncrease' ? '#ffffff' : iconColor}">${icon}</span></span><span class="text-xl font-bold text-white mt-1 block">${value}</span></div>`;
             });
         }
 
