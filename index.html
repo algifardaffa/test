@@ -49,6 +49,8 @@
     .leaderboard-eternal-text { background:linear-gradient(90deg,#fff0ff 0%,#ff7fe8 28%,#a855f7 50%,#38bdf8 76%,#f0fdff 100%); -webkit-background-clip:text; background-clip:text; color:transparent!important; }
     .leaderboard-eternal-fill { background:linear-gradient(90deg,#fff0ff 0%,#ff7fe8 28%,#a855f7 50%,#38bdf8 76%,#f0fdff 100%)!important; }
     .leaderboard-consistency-value { color:#cbd5e1 !important; }
+    .leaderboard-achievement-value { color:#f87171 !important; }
+    .leaderboard-achievement-fill { background:#ef4444 !important; }
     .ach-card, .ach-tier-detail { border-color:rgba(51,65,85,.6)!important; }
     .leaderboard-sort{display:inline-flex;align-items:center;gap:.25rem;white-space:nowrap;line-height:1.2;min-width:max-content}.leaderboard-sort:hover{color:#fff}.comparison-table-scroll{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}.comparison-table-scroll table{min-width:720px}
     .leaderboard-page-btn { min-width: 2.25rem; height: 2.25rem; padding: 0 0.7rem; border-radius: 0.65rem; border: 1px solid #334155; background: rgba(15,23,42,0.65); color: #94a3b8; font-size: 0.8rem; font-weight: 700; transition: all 0.2s ease; }
@@ -477,7 +479,7 @@
 <div class="overflow-x-auto">
 <table class="w-full min-w-[900px] text-sm">
 <thead><tr class="border-b border-slate-700/70 text-slate-400">
-<th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="rank" type="button">Rank ↕</button></th><th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="name" type="button">Nickname ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="score" type="button">Score ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="lastIncrease" type="button">Latest Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="growth" type="button">Growth ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigIncrease" type="button">Big Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigDrop" type="button">Big Drop ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="consistency" type="button">Consistency ↕</button></th>
+<th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="rank" type="button">Rank ↕</button></th><th class="text-left py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="name" type="button">Nickname ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="score" type="button">Score ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="lastIncrease" type="button">Latest Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="growth" type="button">Growth ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigIncrease" type="button">Big Increase ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="bigDrop" type="button">Big Drop ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="consistency" type="button">Consistency ↕</button></th><th class="text-right py-3 px-3 font-semibold whitespace-nowrap"><button class="leaderboard-sort" data-sort="achievement" type="button">Achievement ↕</button></th>
 </tr></thead>
 <tbody id="leaderboardBody"></tbody>
 </table>
@@ -1548,8 +1550,9 @@
                 const currentRank = Number(currentRankMap[name]);
                 const previousRank = Number(previousRankMap[name]);
                 const rankDelta = Number.isFinite(currentRank) && Number.isFinite(previousRank) ? previousRank - currentRank : 0;
+                const achievement = typeof window.getAchievementUnlockedCount === 'function' ? window.getAchievementUnlockedCount(name) : 0;
                 return { name, rank: currentRank || 0, rankDelta, score: m.latest ?? 0, growth: m.avgGrowth ?? 0, bigIncrease: m.bigIncrease ?? 0,
-                    bigDrop: m.bigDrop ?? 0, lastIncrease: m.lastIncrease ?? 0, consistency: m.consistency ?? 0 };
+                    bigDrop: m.bigDrop ?? 0, lastIncrease: m.lastIncrease ?? 0, consistency: m.consistency ?? 0, achievement };
             }).sort((a, b) => {
                 const av = a[leaderboardSortKey], bv = b[leaderboardSortKey];
                 const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
@@ -1590,7 +1593,8 @@
                     ${metricCell(player, 'growth', 'Growth', '#1d4ed8', change, 'text-blue-700 font-semibold')}
                     ${metricCell(player, 'bigIncrease', 'Big Increase', '#60a5fa', change, 'text-blue-400 font-semibold')}
                     ${metricCell(player, 'bigDrop', 'Big Drop', '#4ade80', change, 'text-green-400 font-semibold')}
-                    ${metricCell(player, 'consistency', 'Consistency', '#fde047', v => `${fmt(v)}%`, 'leaderboard-consistency-value font-semibold')}</tr>`;
+                    ${metricCell(player, 'consistency', 'Consistency', '#fde047', v => `${fmt(v)}%`, 'leaderboard-consistency-value font-semibold')}
+                    <td class="py-3 px-3"><div class="leaderboard-metric"><span class="leaderboard-metric-value leaderboard-achievement-value font-semibold">${player.achievement}</span><span class="leaderboard-bar" aria-label="Achievement progress bar"><span class="leaderboard-bar-fill leaderboard-achievement-fill" style="width:${Math.max(0, Math.min(100, player.achievement / 50 * 100))}%;opacity:1;filter:none"></span></span></div></td></tr>`;
             }).join('');
             document.querySelectorAll('.leaderboard-page-btn').forEach(btn => btn.classList.toggle('active', Number(btn.dataset.page) === page));
         }
@@ -2085,6 +2089,11 @@
               return {...tier, target, passed, available:metric.available, progress:metric.value, unlocked:passed};
             });
           }
+          // Public helper for Leaderboard: one unlocked tier = one achievement, max 50.
+          window.getAchievementUnlockedCount = function(name) {
+            if (!name) return 0;
+            return cfg.reduce((sum, achievement) => sum + getTiers(name, achievement).filter(tier => tier.unlocked).length, 0);
+          };
           function renderAchievements() {
             const achievementNames = getAchievementNames();
             // Always resolve the Achievement profile from the CURRENT Player Bubble selection.
