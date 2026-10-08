@@ -4,7 +4,6 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<script id="theme-preload">try{if(localStorage.getItem('testaments-theme')==='light')document.documentElement.classList.add('light-mode')}catch(e){}</script>
 <title>Tancredi Clan - Testaments Visualizer</title>
 <!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
@@ -137,151 +136,25 @@
 </style>
 
 <style id="theme-toggle-styles">
-  /* Theme tokens. Dark is the existing visual source of truth. */
-  :root {
-    color-scheme: dark;
-    --theme-bg-main:#0f172a;
-    --theme-bg-section:#0f172a;
-    --theme-bg-card:#1e293b;
-    --theme-bg-elevated:#1e293b;
-    --theme-bg-input:#0f172a;
-    --theme-text-primary:#f8fafc;
-    --theme-text-secondary:#cbd5e1;
-    --theme-text-muted:#94a3b8;
-    --theme-border:#334155;
-    --theme-border-soft:#475569;
-    --theme-grid:rgba(51,65,85,.4);
-    --theme-shadow:0 10px 30px rgba(0,0,0,.18);
-    --theme-hover:rgba(51,65,85,.45);
-    --theme-overlay:rgba(2,6,23,.94);
-  }
-
-  html.light-mode {
-    color-scheme:light;
-    --theme-bg-main:#f5f7fa;
-    --theme-bg-section:#f5f7fa;
-    --theme-bg-card:#ffffff;
-    --theme-bg-elevated:#ffffff;
-    --theme-bg-input:#ffffff;
-    --theme-text-primary:#171a1f;
-    --theme-text-secondary:#5f6670;
-    --theme-text-muted:#7b8490;
-    --theme-border:#e2e5e9;
-    --theme-border-soft:#d7dce2;
-    --theme-grid:#e5e8ec;
-    --theme-shadow:0 10px 30px rgba(15,23,42,.08);
-    --theme-hover:#eef1f5;
-    --theme-overlay:rgba(248,250,252,.96);
-  }
-
-  html.light-mode body {
-    background:var(--theme-bg-main) !important;
-    color:var(--theme-text-primary) !important;
-  }
-
-  /* Existing Tailwind slate surfaces become their light counterparts. */
-  html.light-mode .bg-slate-950,
-  html.light-mode .bg-slate-950\/50 { background-color:#f8fafc !important; }
-  html.light-mode .bg-slate-900 { background-color:#f5f7fa !important; }
-  html.light-mode .bg-slate-900\/40,
-  html.light-mode .bg-slate-900\/70,
-  html.light-mode .bg-slate-900\/75,
-  html.light-mode .bg-slate-900\/80,
-  html.light-mode .bg-slate-900\/90 { background-color:#ffffff !important; }
-  html.light-mode .bg-slate-800,
-  html.light-mode .bg-slate-800\/50,
-  html.light-mode .bg-slate-800\/60,
-  html.light-mode .bg-slate-800\/70,
-  html.light-mode .bg-slate-800\/85 { background-color:#ffffff !important; }
-  html.light-mode .bg-slate-700 { background-color:#eef1f5 !important; }
-
-  html.light-mode .text-white { color:var(--theme-text-primary) !important; }
-  html.light-mode .text-slate-100 { color:#242a31 !important; }
-  html.light-mode .text-slate-200 { color:#3f4751 !important; }
-  html.light-mode .text-slate-300 { color:#4f5863 !important; }
-  html.light-mode .text-slate-400 { color:var(--theme-text-secondary) !important; }
-  html.light-mode .text-slate-500 { color:var(--theme-text-muted) !important; }
-  html.light-mode .text-slate-600 { color:#6b7480 !important; }
-
-  html.light-mode .border-slate-600\/60,
-  html.light-mode .border-slate-700,
-  html.light-mode .border-slate-700\/50,
-  html.light-mode .border-slate-700\/60,
-  html.light-mode .border-slate-700\/70,
-  html.light-mode .border-slate-800,
-  html.light-mode .border-slate-800\/70,
-  html.light-mode .border-slate-800\/90 { border-color:var(--theme-border) !important; }
-
-  html.light-mode input,
-  html.light-mode select,
-  html.light-mode textarea {
-    background:var(--theme-bg-input) !important;
-    color:var(--theme-text-primary) !important;
-    border-color:var(--theme-border-soft) !important;
-  }
-  html.light-mode input::placeholder,
-  html.light-mode textarea::placeholder { color:#8a919b !important; opacity:1; }
-  html.light-mode option { background:#fff; color:#171a1f; }
-
-  html.light-mode .shadow-xl,
-  html.light-mode .shadow-lg,
-  html.light-mode .shadow-md { box-shadow:var(--theme-shadow) !important; }
-
-  /* Header / navbar keep the exact existing accent colors, only the environment changes. */
-  html.light-mode .tab-btn { color:#66707c; }
-  html.light-mode .tab-btn:hover { color:#171a1f; background:var(--theme-hover); }
-  html.light-mode .tab-btn.active {
-    color:#171a1f;
-    background:#e9edf2;
-    border-color:#d2d8df;
-    box-shadow:0 4px 12px rgba(15,23,42,.07);
-  }
-  html.light-mode .site-brand-subtitle { color:#7b8490 !important; }
-
-  /* Existing special leaderboard/achievement text gets a readable light counterpart. */
-  html.light-mode .leaderboard-metric-value,
-  html.light-mode .leaderboard-consistency-value,
-  html.light-mode .leaderboard-achievement-value { color:#5f6670 !important; }
-  html.light-mode .leaderboard-bar { background:#e2e5e9; }
-  html.light-mode .leaderboard-page-btn {
-    border-color:#d7dce2;
-    background:#fff;
-    color:#66707c;
-  }
-  html.light-mode .leaderboard-page-btn:hover { background:#eef1f5; color:#171a1f; }
-  html.light-mode .leaderboard-page-btn.active { background:#e2e7ed; border-color:#bfc7d0; color:#171a1f; }
-  html.light-mode .leaderboard-sort:hover { color:#171a1f; }
-
-  html.light-mode .ach-card,
-  html.light-mode .ach-tier-detail { border-color:#e2e5e9 !important; }
-  html.light-mode .ach-card-toggle:hover { background:#f1f3f6 !important; }
-  html.light-mode .ach-card .ach-tier-icon { border-color:#d7dce2 !important; }
-  html.light-mode .ach-card .h-2.bg-slate-800,
-  html.light-mode .ach-card .h-1\.5.bg-slate-800 { background:#e2e5e9 !important; }
-  html.light-mode .ach-card .text-slate-400 { color:#69727d !important; }
-  html.light-mode .ach-card .text-slate-300 { color:#4f5863 !important; }
-
-  html.light-mode #initialLoadingOverlay { background:var(--theme-overlay) !important; }
-  html.light-mode .initial-loading-text { color:#69727d; }
-  html.light-mode .initial-loading-spinner { border-color:rgba(100,116,139,.18); border-top-color:#64748b; }
-
-  #themeToggle {
-    white-space:nowrap;
-    min-height:36px;
-    transition:background-color .2s ease,border-color .2s ease,color .2s ease,box-shadow .2s ease;
-  }
-  html.light-mode #themeToggle {
-    background:#ffffff !important;
-    border-color:#d7dce2 !important;
-    color:#4f5863 !important;
-    box-shadow:0 2px 8px rgba(15,23,42,.05);
-  }
-  html.light-mode #themeToggle:hover { background:#eef1f5 !important; color:#171a1f !important; }
+  :root { color-scheme: dark; }
+  html.light-mode { color-scheme: light; }
+  html.light-mode body { background:#f8fafc !important; color:#0f172a !important; }
+  html.light-mode .bg-slate-900, html.light-mode .bg-slate-900\/80, html.light-mode .bg-slate-900\/90 { background-color:#f1f5f9 !important; }
+  html.light-mode .bg-slate-800, html.light-mode .bg-slate-800\/60 { background-color:#ffffff !important; }
+  html.light-mode .bg-slate-700 { background-color:#e2e8f0 !important; }
+  html.light-mode .text-white { color:#0f172a !important; }
+  html.light-mode .text-slate-100 { color:#1e293b !important; }
+  html.light-mode .text-slate-200 { color:#334155 !important; }
+  html.light-mode .text-slate-300 { color:#475569 !important; }
+  html.light-mode .text-slate-400 { color:#64748b !important; }
+  html.light-mode .text-slate-500 { color:#64748b !important; }
+  html.light-mode .border-slate-700, html.light-mode .border-slate-700\/60, html.light-mode .border-slate-700\/70, html.light-mode .border-slate-700\/50, html.light-mode .border-slate-800\/90 { border-color:#cbd5e1 !important; }
+  html.light-mode input, html.light-mode select { background:#ffffff !important; color:#0f172a !important; border-color:#cbd5e1 !important; }
+  html.light-mode input::placeholder { color:#94a3b8 !important; }
+  html.light-mode .shadow-xl { box-shadow:0 10px 30px rgba(15,23,42,.08) !important; }
+  #themeToggle { white-space:nowrap; }
   html.light-mode .theme-dark-icon { display:none; }
   html:not(.light-mode) .theme-light-icon { display:none; }
-
-  /* Any native browser controls should follow the selected theme. */
-  html.light-mode ::selection { background:#cbd5e1; color:#171a1f; }
 </style>
 </head>
 <body class="min-h-screen bg-slate-900 text-slate-100 pb-12">
@@ -2558,81 +2431,17 @@
 (function(){
   const key='testaments-theme';
   const root=document.documentElement;
+  const saved=localStorage.getItem(key);
+  if(saved==='light') root.classList.add('light-mode');
   const btn=document.getElementById('themeToggle');
-
-  function themeColors(){
-    const light=root.classList.contains('light-mode');
-    return light ? {
-      text:'#4f5863',
-      muted:'#69727d',
-      grid:'#e5e8ec',
-      border:'#d7dce2',
-      tooltipBg:'#ffffff',
-      tooltipTitle:'#171a1f',
-      tooltipBody:'#4f5863'
-    } : {
-      text:'#94a3b8',
-      muted:'#64748b',
-      grid:'rgba(51,65,85,.4)',
-      border:'#334155',
-      tooltipBg:'#1e293b',
-      tooltipTitle:'#f8fafc',
-      tooltipBody:'#cbd5e1'
-    };
-  }
-
-  function updateCharts(){
-    if(typeof Chart==='undefined' || !Chart.instances) return;
-    const c=themeColors();
-    Object.values(Chart.instances).forEach(chart=>{
-      if(!chart || !chart.options) return;
-      chart.options.color=c.text;
-      chart.options.plugins=chart.options.plugins||{};
-      chart.options.plugins.legend=chart.options.plugins.legend||{};
-      chart.options.plugins.legend.labels=chart.options.plugins.legend.labels||{};
-      chart.options.plugins.legend.labels.color=c.text;
-      chart.options.plugins.tooltip=chart.options.plugins.tooltip||{};
-      chart.options.plugins.tooltip.backgroundColor=c.tooltipBg;
-      chart.options.plugins.tooltip.titleColor=c.tooltipTitle;
-      chart.options.plugins.tooltip.bodyColor=c.tooltipBody;
-      chart.options.plugins.tooltip.borderColor=c.border;
-      chart.options.plugins.tooltip.borderWidth=1;
-      if(chart.options.scales){
-        Object.values(chart.options.scales).forEach(scale=>{
-          if(!scale) return;
-          scale.ticks=scale.ticks||{};
-          scale.ticks.color=c.text;
-          scale.grid=scale.grid||{};
-          scale.grid.color=c.grid;
-          scale.border=scale.border||{};
-          scale.border.color=c.border;
-        });
-      }
-      chart.update('none');
+  if(btn){
+    btn.addEventListener('click',()=>{
+      const light=root.classList.toggle('light-mode');
+      localStorage.setItem(key, light?'light':'dark');
+      btn.setAttribute('aria-label', light?'Switch to dark mode':'Switch to light mode');
+      btn.setAttribute('title', light?'Switch to dark mode':'Switch to light mode');
     });
   }
-
-  function applyTheme(mode, persist){
-    const light=mode==='light';
-    root.classList.toggle('light-mode',light);
-    if(persist) localStorage.setItem(key,light?'light':'dark');
-    if(btn){
-      btn.setAttribute('aria-label',light?'Switch to dark mode':'Switch to light mode');
-      btn.setAttribute('title',light?'Switch to dark mode':'Switch to light mode');
-    }
-    updateCharts();
-    window.dispatchEvent(new CustomEvent('testaments-theme-change',{detail:{theme:light?'light':'dark'}}));
-  }
-
-  const saved=localStorage.getItem(key);
-  applyTheme(saved==='light'?'light':'dark',false);
-  if(btn) btn.addEventListener('click',()=>applyTheme(root.classList.contains('light-mode')?'dark':'light',true));
-
-  /* Charts can be created after navigation/data loading. Re-apply theme after those renders. */
-  const observer=new MutationObserver(()=>{ if(root.classList.contains('light-mode')) updateCharts(); });
-  observer.observe(document.body,{childList:true,subtree:true});
-  window.testamentsApplyTheme=applyTheme;
-  window.testamentsUpdateChartTheme=updateCharts;
 })();
 </script>
 </body>
