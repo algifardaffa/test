@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Habit Tracker</title>
+<style>
+:root{--page:#F0F7FF;--bg:#fff;--bg2:#F0F7FF;--card:#fff;--bd:#D9E8FA;--ac:#2563EB;--ac2:#3B82F6;--sel:#DBEAFE;--tx:#172554;--tx2:#64748B;--bad:#B91C1C;--sh:0 1px 3px rgba(23,37,84,.07),0 8px 20px rgba(23,37,84,.05);color-scheme:light}
+:root[data-t=dark]{--page:#080D1A;--bg:#080D1A;--bg2:#0F172A;--card:#111C32;--bd:#263957;--ac:#3B82F6;--ac2:#60A5FA;--sel:#172B4D;--tx:#F1F5F9;--tx2:#94A3B8;--bad:#F87171;--sh:0 10px 28px rgba(0,0,0,.35);color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{font:15px/1.55 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--page);color:var(--tx);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding:32px 24px 64px}
+.hd{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--bd);padding-bottom:16px;margin-bottom:28px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.lg{width:44px;height:44px;border-radius:12px;background:var(--ac);color:#fff;display:grid;place-items:center;flex:none}
+.bt{font-size:18px;font-weight:800;letter-spacing:-.025em;line-height:1.1}.bs{font-size:13px;color:var(--tx2);font-weight:500;line-height:1.2;margin-top:3px}
+.nl{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.tab,.tt{font:inherit;font-size:12.5px;font-weight:700;padding:8px 12px;border-radius:10px;border:1px solid transparent;background:none;color:var(--tx2);cursor:pointer;min-height:40px;white-space:nowrap;transition:all .2s ease}
+.tab:hover{color:var(--tx);background:var(--sel)}.tab.on{background:var(--card);color:var(--tx);border-color:var(--bd);box-shadow:var(--sh)}.tab i{font-style:normal;margin-right:5px}
+.tt{border-color:var(--bd);background:var(--bg2);font-weight:600;margin-left:4px;border-radius:12px;color:var(--tx)}.tt:hover{background:var(--sel)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ac2);outline-offset:2px}
+h1{font-size:30px;font-weight:800;letter-spacing:-.025em;margin:0 0 4px;line-height:1.15}.sub{color:var(--tx2);margin:0 0 28px}
+h2{font-size:18px;font-weight:700;margin:0 0 14px;letter-spacing:-.01em}
+.card>h2:first-child{padding-bottom:12px;border-bottom:1px solid var(--bd);margin-bottom:16px}.dv{margin-top:22px;padding-top:16px;border-top:1px solid var(--bd)}
+.g{display:grid;gap:24px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px;min-width:0;box-shadow:var(--sh)}.card.dim{opacity:.62}
+.big{font-size:38px;font-weight:800;line-height:1;letter-spacing:-.03em}.mut{color:var(--tx2);font-size:13px}
+.bar{height:8px;background:var(--sel);border-radius:9px;overflow:hidden;margin:12px 0}.bar i{display:block;height:100%;background:var(--ac);border-radius:9px;transition:width .3s}.bar.th{height:5px;margin:6px 0 0;width:100%}
+.tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-top:16px}
+.tile{background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:12px 14px}.tile b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.2}.tile span{font-size:12px;color:var(--tx2);font-weight:500}
+.btn{font-size:13px;font-weight:700;background:var(--ac);color:#fff;border:1px solid var(--ac);border-radius:12px;padding:9px 16px;cursor:pointer;min-height:40px;transition:all .2s ease}
+.btn:hover{filter:brightness(1.1)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.s{background:var(--bg2);color:var(--tx);border-color:var(--bd)}.btn.s:hover{background:var(--sel)}.btn.d{background:var(--bad);border-color:var(--bad);color:#fff}
+:root:not([data-t=dark]) .btn.d{color:#fff}:root[data-t=dark] .btn.d{color:#0F172A}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hi{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--bd)}.hi:last-child{border:0}
+.hi.dim{opacity:.5}.hi .n{flex:1;min-width:0;overflow-wrap:anywhere}.hi.done .n{text-decoration:line-through;color:var(--tx2)}
+.chk{width:28px;height:28px;flex:none;border-radius:9px;border:2px solid var(--ac);background:none;cursor:pointer;color:#fff;font-weight:800}.chk.on{background:var(--ac)}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;background:var(--sel);color:var(--ac);border-radius:8px;padding:1px 8px;margin:2px 2px 0 0}
+.ico{width:44px;height:44px;border-radius:12px;background:var(--sel);display:grid;place-items:center;font-size:22px;flex:none}
+input,select,textarea{width:100%;background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:11px 14px;min-height:42px;font-size:14px;transition:all .2s ease}
+input:focus,textarea:focus,select:focus{outline:0;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 30%,transparent)}
+::placeholder{color:var(--tx2);opacity:.8}
+label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
+.seg{display:inline-flex;gap:2px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:4px;max-width:100%}
+.seg button{border:0;background:none;border-radius:8px;min-width:40px;min-height:36px;padding:0 14px;font-size:12px;font-weight:600;color:var(--tx2);cursor:pointer;transition:all .2s ease}
+.seg button:hover{color:var(--tx)}.seg button.on{background:var(--sel);color:var(--ac);box-shadow:inset 0 0 0 1px var(--bd)}
+.days label{display:inline-flex;gap:5px;align-items:center;margin:0 12px 6px 0;font-weight:500}.days input,label input[type=checkbox]{width:auto;min-height:0;accent-color:var(--ac)}
+.cv{position:relative;height:250px}
+.heat{display:grid;grid-template-rows:repeat(7,1fr);grid-auto-flow:column;gap:3px;overflow-x:auto}
+.heat i{width:16px;height:16px;border-radius:4px;background:var(--sel);display:block}
+.heat i.l1{background:#93C5FD}.heat i.l2{background:var(--ac2)}.heat i.l3{background:var(--ac)}.heat i.sk{outline:1px dashed var(--tx2)}
+.err{color:var(--bad);font-size:13px;min-height:18px}
+dialog{border:1px solid var(--bd);border-radius:16px;background:var(--card);color:var(--tx);max-width:min(460px,92vw);padding:22px;box-shadow:var(--sh)}dialog::backdrop{background:rgba(2,6,23,.6)}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--card);color:var(--tx);border:1px solid var(--bd);box-shadow:var(--sh);font-weight:600;font-size:13px;padding:11px 18px;border-radius:12px;z-index:9;display:none;max-width:90vw}
+.note{border-left:3px solid var(--ac2);background:var(--bg2);border-radius:0 12px 12px 0;padding:8px 12px;margin:10px 0;overflow-wrap:anywhere}
+.ins{padding:10px 0;border-bottom:1px solid var(--bd)}.ins:last-child{border:0}
+#ld{position:fixed;inset:0;background:var(--page);z-index:20;display:grid;place-items:center}.sp{width:34px;height:34px;border-radius:50%;border:3px solid var(--bd);border-top-color:var(--ac);animation:s .8s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
+@media(max-width:640px){.wrap{padding:20px 14px 56px}h1{font-size:24px}.hd{flex-wrap:wrap}.brand{flex:1}.nl{order:3;width:100%;justify-content:space-between;flex-wrap:nowrap}.tab{padding:8px 5px;font-size:11.5px;flex:1}.tab i{display:none}.tt{margin:0}.big{font-size:32px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style></head><body>
+<div id="ld"><div class="sp"></div></div>
+<div class="wrap"><header class="hd"><div class="brand"><div class="lg"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg></div><div><div class="bt">Habit Tracker</div><div class="bs">Daily routines, at your pace</div></div></div>
+<nav class="nl" id="nl" aria-label="Main navigation"></nav><button class="tt" id="tt" aria-label="Toggle light and dark theme"></button></header><main id="app"></main></div><div id="toast" role="status"></div>
+<dialog id="dlg"><div id="dc"></div></dialog>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(()=>{
+const KEY='habit-tracker-v1',DAYN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],VIEWS=['Dashboard','Habits','History','Insights','Settings'];
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const pd=s=>{const[m,a,b]=[0,0,0],x=/^(\d{4})-(\d\d)-(\d\d)$/.exec(s);return x?new Date(+x[1],+x[2]-1,+x[3]):new Date(NaN)};
+const add=(s,n)=>{const d=pd(s);d.setDate(d.getDate()+n);return ymd(d)};
+const today=()=>ymd(new Date());
+const DEF=[['water','Drink Water','Drink water regularly throughout the day.','💧','Health',[0,1,2,3,4,5,6],8,'glasses',1,0],['exercise','Exercise','Do some physical activity, even if it is just a short walk.','🏃','Fitness',[1,3,5,6],15,'minutes',0,1],['read','Read','Read a book or other useful material.','📖','Learning',[0,1,2,3,4,5,6],10,'pages',0,1],['sleep','Sleep on Time','Follow a consistent bedtime routine.','🌙','Sleep',[0,1,2,3,4,5,6],null,'',1,0],['wake','Wake Up on Time','Try to wake up at the intended time.','⏰','Sleep',[0,1,2,3,4,5,6],null,'',1,0],['meditate','Meditate','Spend a few minutes meditating or practicing mindfulness.','🧘','Mindfulness',[0,1,2,3,4,5,6],5,'minutes',0,0],['journal','Journal','Write down thoughts, reflections, or daily experiences.','📝','Mindfulness',[0,1,2,3,4,5,6],null,'',0,0],['study','Study or Learn','Spend time learning or practicing a useful skill.','🎓','Learning',[1,2,3,4,5],20,'minutes',0,1],['tidy','Tidy Up','Organize a small part of the room or workspace.','🧹','Home',[1,3,6],null,'',0,0],['plan','Plan the Day','Identify important tasks or priorities for the day.','🗓️','Planning',[0,1,2,3,4,5,6],null,'',1,0]];
+function seed(){const t=today();return DEF.map(x=>({id:'def-'+x[0],name:x[1],desc:x[2],emoji:x[3],cat:x[4],days:x[5].slice(),target:x[6],unit:x[7],essential:!!x[8],stretch:!!x[9],created:t,archivedOn:null}))}
+let S,view='Dashboard',hdate=today(),charts=[],storeOK=true;
+const blank=()=>({v:1,initialized:false,habits:[],logs:{},checkins:{},notes:[],settings:{theme:'system',mode:'normal'}});
+function load(){try{const r=localStorage.getItem(KEY);if(!r){const b=blank();b.habits=seed();b.initialized=true;return b}const m=migrate(JSON.parse(r));if(!m.initialized){if(!m.habits.length&&!Object.keys(m.logs).length&&!m.notes.length&&!Object.keys(m.checkins).length)m.habits=seed();m.initialized=true}return m}catch(e){storeOK=false;return null}}
+function migrate(d){if(!d||typeof d!=='object')throw 0;const b=blank();return{v:1,initialized:d.initialized===true,habits:Array.isArray(d.habits)?d.habits.filter(h=>h&&h.id&&h.name&&Array.isArray(h.days)).map(h=>Object.assign({created:'1970-01-01'},h)):[],logs:d.logs&&typeof d.logs==='object'?d.logs:{},checkins:d.checkins&&typeof d.checkins==='object'?d.checkins:{},notes:Array.isArray(d.notes)?d.notes.filter(n=>n&&n.id):[],settings:Object.assign(b.settings,d.settings||{})}}
+function save(){if(!storeOK)return;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Could not save. Storage may be full or blocked; export a backup.')}}
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',3200)}
+S=load();
+if(!S){S=blank();S.habits=seed();S.initialized=true;storeOK=false}else if(storeOK)save();
+/* ---- domain ---- */
+const H=id=>S.habits.find(h=>h.id===id);
+const lg=(d,id)=>S.logs[d+'|'+id];
+function sched(d){const w=pd(d).getDay();return S.habits.filter(h=>h.days.includes(w)&&h.created<=d&&(!h.archivedOn||d<h.archivedOn))}
+function dayStat(d){const s=sched(d),done=s.filter(h=>lg(d,h.id)==='done').length,sk=s.filter(h=>lg(d,h.id)==='skip').length,den=s.length-sk;
+ return{s,done,sk,den,tracked:s.some(h=>lg(d,h.id)),rate:den>0?done/den:null}}
+function range(to,n){const a=[];for(let i=n-1;i>=0;i--)a.push(add(to,-i));return a}
+function rate(days,hid){let n=0,dd=0;for(const d of days){const s=sched(d).filter(h=>!hid||h.id===hid);const t=s.some(h=>lg(d,h.id));if(!t)continue;for(const h of s){const l=lg(d,h.id);if(l==='skip')continue;dd++;if(l==='done')n++}}return dd?n/dd:null}
+const pct=r=>r==null?'–':Math.round(r*100)+'%';
+function streaks(h){const t=today();let cur=0,best=0,run=0,open=true;
+ for(let d=h.created;d<=t;d=add(d,1)){if(!sched(d).includes(h)){continue}const l=lg(d,h.id);if(l==='done'){run++;best=Math.max(best,run)}else if(l==='skip'){}else if(d!==t)run=0}
+ for(let d=t;d>=h.created;d=add(d,-1)){if(!sched(d).includes(h))continue;const l=lg(d,h.id);if(l==='done')cur++;else if(l==='skip')continue;else if(d===t)continue;else break}
+ return{cur,best}}
+function setLog(d,id,v){const k=d+'|'+id;if(!v||S.logs[k]===v)delete S.logs[k];else S.logs[k]=v;save();render()}
+/* ---- ui helpers ---- */
+function cList(d,focus){const s=sched(d);if(!s.length)return'<p class="mut">No habits scheduled for this day.</p>';const m=S.settings.mode;
+ return s.map(h=>{const l=lg(d,h.id),dim=focus&&m==='low'&&!h.essential,up=focus&&m==='high'&&h.stretch;
+ return`<div class="hi ${l==='done'?'done':''} ${dim?'dim':''}"><button class="chk ${l==='done'?'on':''}" data-a="tog" data-d="${d}" data-id="${h.id}" aria-pressed="${l==='done'}" aria-label="Mark ${esc(h.name)} done">${l==='done'?'✓':''}</button>
+ <div class="n">${esc(h.emoji||'')} ${esc(h.name)} ${h.target?`<span class="tag">goal ${h.target}${h.unit?' '+esc(h.unit):''}</span>`:''} ${h.essential?'<span class="tag">essential</span>':''}${up?' <span class="tag">stretch</span>':''}${l==='skip'?' <span class="tag">skipped</span>':''}</div>
+ <button class="btn s" data-a="skip" data-d="${d}" data-id="${h.id}">${l==='skip'?'Unskip':'Skip'}</button></div>`}).join('')}
+function seg(name,val){return`<div class="seg" role="group" aria-label="${name}">`+[1,2,3,4,5].map(n=>`<button type="button" data-a="seg" data-n="${name}" data-v="${n}" class="${val==n?'on':''}">${n}</button>`).join('')+'</div>'}
+function checkin(d){const c=S.checkins[d]||{};return`<form data-f="ci" data-d="${d}"><label>Mood (1 low – 5 high)</label>${seg('mood',c.mood)}<label>Energy</label>${seg('energy',c.energy)}<label>Stress</label>${seg('stress',c.stress)}
+ <label for="ci-n">Note (optional)</label><textarea id="ci-n" rows="2" maxlength="500">${esc(c.note||'')}</textarea>
+ <div class="row" style="margin-top:12px"><button class="btn">Save check-in</button>${S.checkins[d]?'<button type="button" class="btn s" data-a="delci" data-d="'+d+'">Delete</button>':''}</div></form>`}
+function notesFor(d){const n=S.notes.filter(x=>x.date===d);return n.map(x=>`<div class="note">${esc(x.text)}<div class="row"><button class="btn s" data-a="editnote" data-id="${x.id}">Edit</button><button class="btn s" data-a="delnote" data-id="${x.id}">Delete</button></div></div>`).join('')||'<p class="mut">No notes yet.</p>'}
+function noteForm(d){return`<form data-f="note" data-d="${d}"><label for="nt-${d}">Brain dump</label><textarea id="nt-${d}" rows="2" maxlength="1000" placeholder="Anything on your mind…"></textarea><div class="row" style="margin-top:8px"><button class="btn">Add note</button></div></form>`}
+/* ---- views ---- */
+const V={};
+const tile=(b,t)=>`<div class="tile"><b>${b}</b><span>${t}</span></div>`;
+V.Dashboard=()=>{const t=today(),st=dayStat(t),w=range(t,7),mo=range(t,30);
+ if(!S.habits.length)return`<h1>Welcome</h1><p class="sub">Start small. One habit is enough.</p><div class="card"><h2>Begin here</h2><p>Add a habit you’d like to build, or bring back the 10 starter habits. Tick them off here each day and your streaks and insights will appear.</p><div class="row"><button class="btn" data-a="newh">Add a habit</button><button class="btn s" data-a="starter">Add the 10 starter habits</button></div></div>`;
+ const ss=S.habits.filter(h=>!h.archivedOn).map(h=>({h,...streaks(h)})),p=st.den?st.done/st.den:0,bn=Math.max(0,...ss.map(x=>x.cur)),ba=Math.max(0,...S.habits.map(h=>streaks(h).best)),tot=Object.values(S.logs).filter(v=>v==='done').length;
+ const act=Object.keys(S.logs).filter(k=>S.logs[k]==='done').sort((a,b)=>b.localeCompare(a)).slice(0,6).map(k=>{const[d,id]=k.split('|'),h=H(id);return h?`<div class="ins">${esc(h.emoji||'')} ${esc(h.name)} <span class="mut">· ${d}</span></div>`:''}).join('')||'<p class="mut">Completed habits will show here.</p>';
+ return`<h1>Dashboard</h1><p class="sub">${new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}. Do what you can today.</p>
+ <div class="card" style="margin-bottom:24px"><h2>Today’s progress</h2><div class="row" style="justify-content:space-between;align-items:flex-end"><div class="big">${st.den?Math.round(p*100)+'%':'–'}</div><div class="mut">${st.done} of ${st.den} scheduled habits done${st.sk?` · ${st.sk} skipped`:''}</div></div><div class="bar"><i style="width:${p*100}%"></i></div>
+ <div class="tiles">${tile(pct(rate(w)),'Last 7 days')}${tile(pct(rate(mo)),'Last 30 days')}${tile(bn,'Current best streak')}${tile(ba,'Longest streak')}${tile(tot,'Total completions')}${tile(st.s.length,'Due today')}</div><p class="mut" style="margin:12px 0 0">Rates count only tracked days and scheduled habits. Days with no records are not treated as misses.</p></div>
+ <div class="g"><div class="card"><h2>Today’s checklist</h2>${cList(t,true)}</div><div><div class="card" style="margin-bottom:24px"><h2>Energy mode</h2><div class="seg">${['low','normal','high'].map(m=>`<button data-a="mode" data-v="${m}" class="${S.settings.mode===m?'on':''}">${{low:'Low energy',normal:'Normal',high:'High energy'}[m]}</button>`).join('')}</div><p class="mut" style="margin:12px 0 0">${{low:'Highlights essential habits; others stay available.',normal:'Shows your regular plan.',high:'Highlights stretch habits.'}[S.settings.mode]} Modes never change your records.</p></div>
+ <div class="card"><h2>Streaks</h2>${ss.map(x=>`<div class="hi"><div class="n">${esc(x.h.emoji||'')} ${esc(x.h.name)}<div class="bar th"><i style="width:${x.best?Math.round(x.cur/x.best*100):0}%"></i></div></div><span class="tag">now ${x.cur}</span><span class="tag">best ${x.best}</span></div>`).join('')||'<p class="mut">No active habits.</p>'}<p class="mut">Streak = consecutive scheduled days done. Skips don’t break it, and a missed day just starts fresh.</p></div></div></div>
+ <div class="g"><div class="card"><h2>Daily check-in <span class="mut">(optional)</span></h2>${checkin(t)}</div><div class="card"><h2>Quick note</h2>${noteForm(t)}${notesFor(t)}</div><div class="card"><h2>Recent activity</h2>${act}</div><div class="card"><h2>Insights</h2>${insights().slice(0,3).map(i=>`<div class="ins">${i}</div>`).join('')}</div></div>`};
+V.Habits=()=>`<h1>Habits</h1><p class="sub">Every habit is yours to rename, reschedule, archive or delete.</p><div class="row" style="margin-bottom:24px"><button class="btn" data-a="newh">+ Add habit</button><button class="btn s" data-a="starter">Add missing starter habits</button></div>${S.habits.length?`<div class="g">${S.habits.map(h=>{const k=streaks(h);return`<div class="card ${h.archivedOn?'dim':''}"><div class="row" style="flex-wrap:nowrap"><span class="ico">${esc(h.emoji||'•')}</span><div style="min-width:0"><b style="overflow-wrap:anywhere">${esc(h.name)}</b><div class="mut">${esc(h.cat||'No category')}</div></div></div>${h.desc?`<p class="mut" style="margin:12px 0 0">${esc(h.desc)}</p>`:''}
+ <div style="margin:12px 0 16px"><span class="tag">${h.days.length===7?'Every day':h.days.map(d=>DAYN[d]).join(' ')}</span>${h.target?`<span class="tag">goal ${h.target}${h.unit?' '+esc(h.unit):''}</span>`:''}${h.essential?'<span class="tag">essential</span>':''}${h.stretch?'<span class="tag">stretch</span>':''}${h.archivedOn?'<span class="tag">archived</span>':`<span class="tag">streak ${k.cur}</span>`}</div>
+ <div class="row"><button class="btn s" data-a="edith" data-id="${h.id}">Edit</button><button class="btn s" data-a="arch" data-id="${h.id}">${h.archivedOn?'Restore':'Archive'}</button><button class="btn d" data-a="delh" data-id="${h.id}">Delete</button></div></div>`}).join('')}</div>`:'<div class="card"><p>No habits yet. Add your own or bring back the starter set.</p></div>'}`;
+V.History=()=>{const d=hdate,mo=d.slice(0,7),days=[];for(let x=mo+'-01';x.startsWith(mo);x=add(x,1))days.push(x);const first=pd(mo+'-01').getDay();
+ const wk=range(d,7),sm=a=>{const t=a.filter(x=>dayStat(x).tracked).length;return`${pct(rate(a))} across ${t} tracked day${t==1?'':'s'}`};
+ return`<h1>History</h1><p class="sub">Review and correct past days.</p><div class="g"><div class="card"><div class="row" style="justify-content:space-between"><button class="btn s" data-a="hd" data-v="-1" aria-label="Previous day">‹</button><input type="date" id="hd" value="${d}" max="${today()}" style="width:auto" aria-label="Choose date"><button class="btn s" data-a="hd" data-v="1" aria-label="Next day">›</button></div>
+ <h2 class="dv">${pd(d).toLocaleDateString(undefined,{month:'long',year:'numeric'})}</h2><div class="heat" style="grid-template-rows:repeat(7,1fr);grid-auto-flow:row;grid-template-columns:repeat(7,1fr)">${DAYN.map(n=>`<span class="mut">${n[0]}</span>`).join('')}${'<span></span>'.repeat(first)}${days.map(x=>{const s=dayStat(x);return`<button data-a="pick" data-d="${x}" title="${x}" style="aspect-ratio:1;border:${x===d?'2px solid var(--ac)':'1px solid var(--bd)'};border-radius:8px;background:${s.rate==null?'var(--card)':s.rate>=.8?'var(--ac)':s.rate>0?'#93C5FD':'var(--sel)'};color:${s.rate>=.8?'#fff':'var(--tx)'};cursor:pointer">${+x.slice(8)}</button>`}).join('')}</div>
+ <p class="mut">Dark = most done · blank = no records (not a miss).</p><div class="mut">Week to this date: ${sm(wk)}<br>Month: ${sm(days.filter(x=>x<=today()))}</div></div>
+ <div class="card"><h2>${d}</h2>${(()=>{const s=dayStat(d);return`<p class="mut">${s.tracked?`${s.done} done, ${s.sk} skipped, ${s.s.length-s.done-s.sk} not done`:'No records for this day.'}</p>`})()}${cList(d,false)}</div></div>
+ <div class="g"><div class="card"><h2>Check-in</h2>${checkin(d)}</div><div class="card"><h2>Notes</h2>${noteForm(d)}${notesFor(d)}</div></div>`};
+V.Insights=()=>{if(!S.habits.length)return'<h1>Insights</h1><p class="sub">Add habits and log a few days to see patterns.</p><div class="card">Nothing to analyse yet.</div>';
+ const t=today(),all=Object.keys(S.logs).length,done=Object.values(S.logs).filter(v=>v==='done').length;
+ return`<h1>Insights</h1><p class="sub">Based only on your saved records. Patterns are observations, not causes.</p>
+ <div class="g"><div class="card"><h2>Totals</h2><div class="big">${done}</div><div class="mut">completions · overall rate ${pct(rate(Object.keys(S.logs).map(k=>k.split('|')[0]).filter((v,i,a)=>a.indexOf(v)===i)))}</div></div><div class="card"><h2>What we notice</h2>${insights().map(i=>`<div class="ins">${i}</div>`).join('')}</div></div>
+ <div class="g"><div class="card"><h2>Daily completion, 30 days</h2><div class="cv"><canvas id="c1"></canvas></div><p class="mut">Line shows 7-day moving average. Gaps are untracked days.</p></div><div class="card"><h2>Habit comparison, 30 days</h2><div class="cv"><canvas id="c2"></canvas></div></div>
+ <div class="card"><h2>By weekday, 90 days</h2><div class="cv"><canvas id="c3"></canvas></div></div><div class="card"><h2>Mood &amp; energy</h2><div class="cv"><canvas id="c4"></canvas></div><p class="mut" id="c4m"></p></div></div>
+ <div class="card"><h2>Activity, last 12 weeks</h2><div class="heat">${(()=>{const e=range(t,84),pad=pd(e[0]).getDay();return'<i style="visibility:hidden"></i>'.repeat(pad)+e.map(d=>{const s=dayStat(d);return`<i title="${d}: ${pct(s.rate)}" class="${s.rate==null?(s.tracked?'sk':''):s.rate>=.8?'l3':s.rate>=.4?'l2':s.rate>0?'l1':''}"></i>`}).join('')})()}</div></div>`};
+V.Settings=()=>`<h1>Settings</h1><p class="sub">Appearance and your data.</p><div class="g"><div class="card"><h2>Theme</h2><div class="seg">${['light','dark','system'].map(m=>`<button data-a="theme" data-v="${m}" class="${S.settings.theme===m?'on':''}">${m[0].toUpperCase()+m.slice(1)}</button>`).join('')}</div>
+ <h2 class="dv">Local storage</h2><p class="mut">Everything is saved in this browser on this device only. It is not synced or backed up. Export regularly.${storeOK?'':' <b>Storage is currently unavailable or unreadable; changes won’t be saved.</b>'}</p></div>
+ <div class="card"><h2>Export</h2><div class="row"><button class="btn" data-a="expj">Export JSON</button><button class="btn s" data-a="expc">Export CSV</button></div><p class="mut">CSV columns: type, date, habit, status, mood, energy, stress, note.</p>
+ <h2 class="dv">Import JSON</h2><input type="file" id="imp" accept=".json,application/json" aria-label="Choose backup file"><p class="mut">Import merges: new items are added; existing ones (same id/date) are kept. Nothing is overwritten.</p><div class="err" id="imperr"></div></div>
+ <div class="card"><h2>Clear all data</h2><p class="mut">Permanently deletes habits, records, check-ins and notes in this browser.</p><button class="btn d" data-a="clear">Clear all data…</button></div></div>`;
+/* ---- insights ---- */
+function insights(){const t=today(),o=[],ok=n=>range(t,n).filter(d=>dayStat(d).tracked).length;
+ if(ok(28)<6)return['Not enough records yet. Log about 6 days to unlock comparisons and patterns.'];
+ const a=rate(range(t,14)),b=rate(range(add(t,-14),14));
+ if(ok(14)>=3&&range(add(t,-14),14).filter(d=>dayStat(d).tracked).length>=3&&a!=null&&b!=null){const df=Math.round((a-b)*100);o.push(Math.abs(df)<5?`Last 14 days (${pct(a)}) are about the same as the 14 before (${pct(b)}).`:`Last 14 days: ${pct(a)}, ${df>0?'up':'down'} ${Math.abs(df)} points from ${pct(b)} in the previous 14.`)}
+ const wd=[0,1,2,3,4,5,6].map(w=>{let n=0,dd=0,c=0;range(t,90).filter(d=>pd(d).getDay()===w).forEach(d=>{const s=dayStat(d);if(s.tracked&&s.den){n+=s.done;dd+=s.den;c++}});return{w,c,r:dd?n/dd:null}}).filter(x=>x.c>=3&&x.r!=null).sort((x,y)=>x.r-y.r);
+ if(wd.length>=3&&wd[wd.length-1].r-wd[0].r>=.2)o.push(`${DAYN[wd[0].w]}s tend to be lower (${pct(wd[0].r)}) than ${DAYN[wd[wd.length-1].w]}s (${pct(wd[wd.length-1].r)}), over ${wd[0].c}+ tracked days each.`);
+ S.habits.filter(h=>!h.archivedOn).forEach(h=>{const x=rate(range(t,14),h.id),y=rate(range(add(t,-14),14),h.id);if(x!=null&&y!=null&&x-y>=.25)o.push(`${esc(h.name)} improved: ${pct(y)} → ${pct(x)} over two weeks.`);const s=streaks(h);if(s.cur>=3)o.push(`${esc(h.name)}: ${s.cur} scheduled days in a row.`)});
+ return o.length?o:['Nothing stands out. Steady is fine.']}
+/* ---- charts ---- */
+function destroy(){charts.forEach(c=>{try{c.destroy()}catch(e){}});charts=[]}
+function mk(id,cfg){const el=document.getElementById(id);if(!el)return;if(typeof Chart==='undefined'){el.parentNode.innerHTML='<p class="mut">Charts unavailable (chart library didn’t load). Everything else still works.</p>';return}
+ try{const cs=getComputedStyle(document.documentElement),tx=cs.getPropertyValue('--tx2'),bd=cs.getPropertyValue('--bd');Chart.defaults.color=tx;Chart.defaults.borderColor=bd;Chart.defaults.font.family='Inter,system-ui,sans-serif';Chart.defaults.elements.bar.borderRadius=6;Chart.defaults.plugins.legend.labels.usePointStyle=true;const T=Chart.defaults.plugins.tooltip,cd=cs.getPropertyValue('--card'),tt=cs.getPropertyValue('--tx');T.backgroundColor=cd;T.titleColor=tt;T.bodyColor=tx;T.borderColor=bd;T.borderWidth=1;T.padding=10;T.cornerRadius=10;cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options);charts.push(new Chart(el,cfg))}catch(e){el.parentNode.innerHTML='<p class="mut">This chart couldn’t be drawn.</p>'}}
+function drawCharts(){if(view!=='Insights')return;const t=today(),ac=getComputedStyle(document.documentElement).getPropertyValue('--ac').trim(),a2=getComputedStyle(document.documentElement).getPropertyValue('--ac2').trim(),d30=range(t,30);
+ const r=d30.map(d=>{const x=dayStat(d).rate;return x==null?null:Math.round(x*100)}),ma=d30.map((d,i)=>{const v=r.slice(Math.max(0,i-6),i+1).filter(x=>x!=null);return v.length>=3?Math.round(v.reduce((p,c)=>p+c)/v.length):null});
+ mk('c1',{type:'line',data:{labels:d30.map(d=>d.slice(5)),datasets:[{label:'Daily %',data:r,borderColor:a2,backgroundColor:a2,spanGaps:false,tension:.2},{label:'7-day avg',data:ma,borderColor:ac,borderDash:[5,4],pointRadius:0,spanGaps:true}]},options:{scales:{y:{min:0,max:100}}}});
+ const hs=S.habits.filter(h=>!h.archivedOn).map(h=>({n:h.name,r:rate(d30,h.id)})).filter(x=>x.r!=null);
+ mk('c2',{type:'bar',data:{labels:hs.map(x=>x.n),datasets:[{label:'Completion %',data:hs.map(x=>Math.round(x.r*100)),backgroundColor:ac}]},options:{indexAxis:'y',scales:{x:{min:0,max:100}}}});
+ const wd=[0,1,2,3,4,5,6].map(w=>{const dd=range(t,90).filter(d=>pd(d).getDay()===w);return rate(dd)});
+ mk('c3',{type:'bar',data:{labels:DAYN,datasets:[{label:'Completion %',data:wd.map(x=>x==null?null:Math.round(x*100)),backgroundColor:a2}]},options:{scales:{y:{min:0,max:100}}}});
+ const ck=Object.keys(S.checkins).sort(),cl=ck.slice(-30);
+ if(ck.length<5){const el=$('#c4');if(el)el.parentNode.innerHTML='<p class="mut">Needs at least 5 check-ins. You have '+ck.length+'.</p>'}else mk('c4',{type:'line',data:{labels:cl.map(d=>d.slice(5)),datasets:['mood','energy'].map((k,i)=>({label:k,data:cl.map(d=>S.checkins[d][k]??null),borderColor:i?a2:ac,spanGaps:true}))},options:{scales:{y:{min:1,max:5}}}})}
+/* ---- theme / render ---- */
+function applyTheme(){const m=S.settings.theme,dk=m==='dark'||(m==='system'&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.dataset.t=dk?'dark':'light';const t=$('#tt');if(t)t.textContent=dk?'☀ Light':'🌙 Dark'}
+const GL=[['●','#ef4444'],['◈','#3b82f6'],['◆','#a78bfa'],['◆','#eab308'],['●','#94a3b8']];
+function render(){destroy();$('#nl').innerHTML=VIEWS.map((v,i)=>`<button data-a="nav" data-v="${v}" class="tab ${v===view?'on':''}" ${v===view?'aria-current="page"':''}><i style="color:${GL[i][1]}">${GL[i][0]}</i>${v}</button>`).join('');applyTheme();
+ try{$('#app').innerHTML=V[view]()}catch(e){$('#app').innerHTML='<div class="card">This page hit an error. Your data is safe. Try another page.</div>'}
+ try{drawCharts()}catch(e){}$('#ld')?.remove()}
+function dlg(html){$('#dc').innerHTML=html;$('#dlg').showModal()}
+const closeDlg=()=>$('#dlg').close();
+function confirmD(msg,btn,fn){dlg(`<h2>Are you sure?</h2><p>${msg}</p><div class="row"><button class="btn d" id="yes">${btn}</button><button class="btn s" id="no">Cancel</button></div>`);$('#yes').onclick=()=>{closeDlg();fn()};$('#no').onclick=closeDlg}
+function habitForm(h){h=h||{days:[0,1,2,3,4,5,6]};dlg(`<h2>${h.id?'Edit':'New'} habit</h2><form data-f="habit" data-id="${h.id||''}"><label for="hn">Name</label><input id="hn" maxlength="60" value="${esc(h.name||'')}" required><label for="he">Emoji (optional)</label><input id="he" maxlength="4" value="${esc(h.emoji||'')}"><label for="hc">Category (optional)</label><input id="hc" maxlength="30" value="${esc(h.cat||'')}"><label for="hd2">Description (optional)</label><input id="hd2" maxlength="120" value="${esc(h.desc||'')}">
+ <div class="row"><div style="flex:1;min-width:120px"><label for="ht">Daily target (optional)</label><input id="ht" type="number" min="1" max="999" value="${h.target||''}"></div><div style="flex:1;min-width:120px"><label for="hu">Unit</label><input id="hu" maxlength="14" placeholder="e.g. minutes" value="${esc(h.unit||'')}"></div></div><label>Days</label><div class="days">${DAYN.map((n,i)=>`<label><input type="checkbox" name="dy" value="${i}" ${h.days.includes(i)?'checked':''}>${n}</label>`).join('')}</div>
+ <label><input type="checkbox" id="hes" style="width:auto;min-height:0" ${h.essential?'checked':''}> Essential (highlighted on low-energy days)</label><label><input type="checkbox" id="hst" style="width:auto;min-height:0" ${h.stretch?'checked':''}> Stretch (highlighted on high-energy days)</label>
+ <div class="err" id="herr"></div><div class="row"><button class="btn">Save</button><button type="button" class="btn s" id="no">Cancel</button></div></form>`);$('#no').onclick=closeDlg}
+/* ---- export ---- */
+function dl(name,txt,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+const csvc=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+function csv(){const r=[['type','date','habit','status','mood','energy','stress','note']];Object.keys(S.logs).sort().forEach(k=>{const[d,id]=k.split('|');r.push(['habit',d,H(id)?.name||'(deleted)',S.logs[k]])});Object.keys(S.checkins).sort().forEach(d=>{const c=S.checkins[d];r.push(['checkin',d,'','',c.mood,c.energy,c.stress,c.note])});S.notes.forEach(n=>r.push(['note',n.date,'','','','','',n.text]));return r.map(x=>x.map(csvc).join(',')).join('\n')}
+function merge(d){const n=migrate(d);if(d.v!==undefined&&d.v>1)throw new Error('This backup is from a newer version.');let a=0;n.habits.forEach(h=>{if(!H(h.id)&&Array.isArray(h.days)){S.habits.push(h);a++}});Object.keys(n.logs).forEach(k=>{if(!(k in S.logs)&&['done','skip'].includes(n.logs[k]))S.logs[k]=n.logs[k]});Object.keys(n.checkins).forEach(k=>{if(!S.checkins[k])S.checkins[k]=n.checkins[k]});n.notes.forEach(x=>{if(!S.notes.some(y=>y.id===x.id))S.notes.push(x)});save();return a}
+/* ---- events ---- */
+document.addEventListener('click',e=>{if(e.target.closest('#tt')){S.settings.theme=document.documentElement.dataset.t==='dark'?'light':'dark';save();render();return}const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,id=b.dataset.id,d=b.dataset.d,v=b.dataset.v;
+ try{({nav(){view=v;render();scrollTo(0,0)},tog(){setLog(d,id,'done')},skip(){setLog(d,id,'skip')},mode(){S.settings.mode=v;save();render()},theme(){S.settings.theme=v;save();render()},
+ newh(){habitForm()},starter(){let c=0;seed().forEach(h=>{if(!H(h.id)){S.habits.push(h);c++}});save();render();toast(c+' starter habits added.')},edith(){habitForm(H(id))},
+ arch(){const h=H(id);h.archivedOn=h.archivedOn?null:today();save();render();toast(h.archivedOn?'Archived. History is kept.':'Restored.')},
+ delh(){confirmD('Delete this habit and all its history? This cannot be undone. Archive instead to keep history.','Delete',()=>{S.habits=S.habits.filter(h=>h.id!==id);Object.keys(S.logs).forEach(k=>{if(k.endsWith('|'+id))delete S.logs[k]});save();render();toast('Habit deleted.')})},
+ seg(){const f=b.closest('form'),on=b.classList.contains('on');f.querySelectorAll(`[data-n="${b.dataset.n}"]`).forEach(x=>x.classList.remove('on'));if(!on)b.classList.add('on')},
+ delci(){delete S.checkins[d];save();render();toast('Check-in deleted.')},
+ delnote(){S.notes=S.notes.filter(n=>n.id!==id);save();render()},
+ editnote(){const n=S.notes.find(x=>x.id===id);dlg(`<h2>Edit note</h2><textarea id="en" rows="4" maxlength="1000">${esc(n.text)}</textarea><div class="row" style="margin-top:12px"><button class="btn" id="ok">Save</button><button class="btn s" id="no">Cancel</button></div>`);$('#no').onclick=closeDlg;$('#ok').onclick=()=>{const t=$('#en').value.trim();if(t){n.text=t;save();closeDlg();render()}}},
+ hd(){const n=add(hdate,+v);if(n<=today()){hdate=n;render()}},pick(){hdate=d;render()},
+ expj(){dl('habit-tracker-backup.json',JSON.stringify(S,null,2),'application/json')},expc(){dl('habit-tracker.csv',csv(),'text/csv')},
+ clear(){confirmD('This permanently deletes ALL habits, records, check-ins and notes in this browser. Export a backup first if unsure.','Clear everything',()=>{const th=S.settings.theme;S=blank();S.initialized=true;S.settings.theme=th;save();render();toast('All data cleared.')})}})[a]()}catch(err){toast('Something went wrong with that action.')}});
+document.addEventListener('submit',e=>{const f=e.target.closest('[data-f]');if(!f)return;e.preventDefault();const k=f.dataset.f,d=f.dataset.d;
+ if(k==='ci'){const c={note:f.querySelector('textarea').value.trim()};['mood','energy','stress'].forEach(n=>{const x=f.querySelector(`[data-n="${n}"].on`);if(x)c[n]=+x.dataset.v});if(c.mood||c.energy||c.stress||c.note){S.checkins[d]=c;save();render();toast('Check-in saved.')}else toast('Pick a value or write a note first.')}
+ if(k==='note'){const t=f.querySelector('textarea').value.trim();if(!t)return;S.notes.push({id:uid(),date:d,text:t});save();render()}
+ if(k==='habit'){const n=$('#hn').value.trim(),dy=[...f.querySelectorAll('[name=dy]:checked')].map(x=>+x.value);if(!n){$('#herr').textContent='Give your habit a name.';return}if(!dy.length){$('#herr').textContent='Choose at least one day.';return}
+  const o={name:n,target:+$('#ht').value>0?Math.round(+$('#ht').value):null,unit:$('#hu').value.trim(),emoji:$('#he').value.trim(),cat:$('#hc').value.trim(),desc:$('#hd2').value.trim(),days:dy,essential:$('#hes').checked,stretch:$('#hst').checked};
+  if(f.dataset.id)Object.assign(H(f.dataset.id),o);else S.habits.push(Object.assign({id:uid(),created:today(),archivedOn:null},o));save();closeDlg();render();toast('Habit saved.')}});
+document.addEventListener('change',e=>{if(e.target.id==='hd'){const v=e.target.value;if(!isNaN(pd(v))&&v<=today()){hdate=v;render()}else toast('Choose a valid date.')}
+ if(e.target.id==='imp'){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{let d,n;$('#imperr').textContent='';try{d=JSON.parse(r.result);if(!d||typeof d!=='object'||(d.v!==undefined&&d.v>1)||(!Array.isArray(d.habits)&&!d.logs))throw 0;n=migrate(d)}catch(x){$('#imperr').textContent='That file isn’t a valid, supported backup. Your data was not changed.';return}
+ dlg(`<h2>Import backup</h2><p>Found ${n.habits.length} habits, ${Object.keys(n.logs).length} records and ${n.notes.length} notes.</p><div class="row"><button class="btn" id="m">Merge</button><button class="btn d" id="rp">Replace everything</button><button class="btn s" id="no">Cancel</button></div><p class="mut">Merge keeps current data and adds anything new. Replace deletes current data first.</p>`);
+ $('#no').onclick=closeDlg;$('#m').onclick=()=>{closeDlg();try{const c=merge(d);render();toast(`Merged. ${c} new habit${c==1?'':'s'} added.`)}catch(x){toast('Import failed. Your data was not changed.')}};
+ $('#rp').onclick=()=>{closeDlg();confirmD('Replace all current data with this backup? This can’t be undone.','Replace',()=>{n.initialized=true;S=n;save();render();toast('Backup restored.')})}};r.readAsText(f);e.target.value=''}});
+
+matchMedia('(prefers-color-scheme:dark)').addEventListener?.('change',()=>{if(S.settings.theme==='system')render()});
+if(!storeOK)setTimeout(()=>toast('Saved data couldn’t be read. Your stored data was left untouched; export is unavailable until fixed.'),300);
+render();
+})();
+</script></body></html>
